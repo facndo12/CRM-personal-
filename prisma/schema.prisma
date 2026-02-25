@@ -17,7 +17,14 @@ model Workspace {
   updatedAt DateTime @updatedAt
 
   users WorkspaceUser[]
-  contacts Contact[] 
+  contacts Contact[]
+  pipelines Pipeline[]
+  deals     Deal[]
+  activities Activity[] 
+  notes      Note[]
+  webhooks   WebhookEndpoint[]  
+  apiKeys    ApiKey[]           
+  eventLogs  EventLog[]     
 
   @@map("workspaces")
 }
@@ -27,6 +34,8 @@ model User {
   email        String   @unique
   passwordHash String
   firstName    String
+  lastName     String?   
+  avatar       String?   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -50,24 +59,209 @@ model WorkspaceUser {
 }
 
 model Contact {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   firstName   String
-  status      String   @default("LEAD")
-  source      String   @default("MANUAL")
-  score       Int      @default(0)
+  lastName    String?       
+  email       String?       
+  phone       String?       
+  avatar      String?       
+  status      String    @default("LEAD")
+  source      String    @default("MANUAL")
+  score       Int       @default(0)
   tags        String[]
-  channels    Json     @default("[]")
-  customData  Json     @default("{}")
-  isArchived  Boolean  @default(false)
+  companyId   String?       
+  ownerId     String?       
+  channels    Json      @default("[]")
+  customData  Json      @default("{}")
+  isArchived  Boolean   @default(false)
+  mergedInto  String?       
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  lastContactedAt DateTime?  
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals     DealContact[]
+  activities    Activity[] 
+  notes      Note[]
 
   @@index([workspaceId])
   @@index([workspaceId, email])
   @@index([workspaceId, phone])
   @@index([workspaceId, status])
   @@map("contacts")
+}
+
+model Pipeline {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    Stage[]
+  deals     Deal[]
+
+  @@index([workspaceId])
+  @@map("pipelines")
+}
+
+model Stage {
+  id              String   @id @default(cuid())
+  pipelineId      String
+  name            String
+  position        Int
+  color           String   @default("#6366f1")
+  probability     Int?              // ← agregar: probabilidad por defecto
+  isWon           Boolean  @default(false)
+  isLost          Boolean  @default(false)
+  rottenAfterDays Int?              // ← agregar: días para marcar como podrido
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([pipelineId, position])
+  @@map("stages")
+}
+
+model Deal {
+  id          String   @id @default(cuid())
+  workspaceId String
+  title       String
+  value       Decimal?  @db.Decimal(15, 2)  // ← ahora opcional
+  currency    String    @default("USD")
+  probability Int?                           // ← ahora opcional
+  pipelineId  String
+  stageId     String
+  position    Int       @default(0)
+  companyId   String?                        // ← faltaba
+  ownerId     String?                        // ← faltaba
+  status      String    @default("OPEN")
+  expectedCloseDate DateTime?               // ← faltaba
+  closedAt          DateTime?               // ← faltaba
+  closedReason      String?                 // ← faltaba
+  customData  Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pipeline  Pipeline      @relation(fields: [pipelineId], references: [id])
+  stage     Stage         @relation(fields: [stageId], references: [id])
+  contacts  DealContact[]
+  activities  Activity[]   
+  notes       Note[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, stageId])
+  @@index([workspaceId, status])
+  @@map("deals")
+}
+
+model DealContact {
+  dealId    String
+  contactId String
+  role      String?
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, contactId])
+  @@map("deal_contacts")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  type        String
+  entityType  String
+  entityId    String
+  contactId   String?
+  dealId      String?
+  userId      String?
+  source      String?
+  title       String
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id])
+  deal      Deal?     @relation(fields: [dealId], references: [id])
+
+  @@index([workspaceId, entityType, entityId])
+  @@index([workspaceId, createdAt])
+  @@map("activities")
+}
+
+model Note {
+  id          String   @id @default(cuid())
+  workspaceId String
+  content     String
+  entityType  String
+  entityId    String
+  contactId   String?
+  dealId      String?
+  userId      String?
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id])
+  deal      Deal?     @relation(fields: [dealId], references: [id])
+
+  @@index([workspaceId, entityType, entityId])
+  @@map("notes")
+}
+
+model WebhookEndpoint {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  url             String
+  secret          String?
+  events          String[]
+  isActive        Boolean   @default(true)
+  failureCount    Int       @default(0)
+  lastTriggeredAt DateTime?
+  lastStatusCode  Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("webhook_endpoints")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model EventLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  event       String
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, event])
+  @@index([workspaceId, createdAt])
+  @@map("event_logs")
 }
