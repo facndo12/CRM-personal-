@@ -1,0 +1,222 @@
+import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
+import { db } from '../database'
+import { config } from '../config'
+import {
+  UnauthorizedError,
+  ConflictError,
+  NotFoundError,
+  ForbiddenError,
+} from '../../types'
+
+export class AuthService {
+
+  // ─── Registro ────────────────────────────────────────────────────
+  async register(data: {
+    email: string
+    password: string
+    firstName: string
+    lastName?: string
+    workspaceName: string
+  }) {
+    // 1. Verificar que el email no esté registrado
+    const existing = await db.user.findUnique({
+      where: { email: data.email }
+    })
+    if (existing) {
+      throw new ConflictError('El email ya está registrado')
+    }
+
+    // 2. Hashear la contraseña
+    // El número 12 es el "cost factor" — cuánto trabajo le cuesta
+    // al servidor calcular el hash. Más alto = más seguro pero más lento.
+    // 12 es el balance recomendado para producción.
+    const passwordHash = await bcrypt.hash(data.password, 12)
+
+    // 3. Generar slug único para el workspace
+    const slug = this.generateSlug(data.workspaceName)
+    const existingSlug = await db.workspace.findUnique({ where: { slug } })
+    const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug
+
+    // 4. Crear usuario + workspace en una transacción
+    // Si algo falla en el medio, ninguno de los dos se crea.
+    // Nunca querés un usuario sin workspace o un workspace sin owner.
+    const result = await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+        },
+      })
+
+      const workspace = await tx.workspace.create({
+        data: {
+          name: data.workspaceName,
+          slug: finalSlug,
+          users: {
+            create: {
+              userId: user.id,
+              role: 'owner',
+            },
+          },
+        },
+      })
+
+      // 5. Crear pipeline por defecto con sus etapas
+      // Todo workspace nuevo arranca con un pipeline listo para usar
+      await tx.pipeline.create({
+        data: {
+          workspaceId: workspace.id,
+          name: 'Sales Pipeline',
+          isDefault: true,
+          stages: {
+            create: [
+              { name: 'Nuevo Lead',  position: 0, color: '#94a3b8', probability: 10  },
+              { name: 'Contactado',  position: 1, color: '#60a5fa', probability: 25  },
+              { name: 'Calificado',  position: 2, color: '#818cf8', probability: 50  },
+              { name: 'Propuesta',   position: 3, color: '#f59e0b', probability: 75  },
+              { name: 'Ganado',      position: 4, color: '#22c55e', probability: 100, isWon: true  },
+              { name: 'Perdido',     position: 5, color: '#ef4444', probability: 0,   isLost: true },
+            ],
+          },
+        },
+      })
+
+      return { user, workspace }
+    })
+
+    return result
+  }
+
+  // ─── Login ───────────────────────────────────────────────────────
+  async login(email: string, password: string) {
+    // 1. Buscar el usuario
+    const user = await db.user.findUnique({ where: { email } })
+    if (!user) {
+      // Importante: no decir "usuario no encontrado" para no
+      // revelar qué emails están registrados
+      throw new UnauthorizedError('Credenciales inválidas')
+    }
+
+    // 2. Verificar la contraseña contra el hash
+    const valid = await bcrypt.compare(password, user.passwordHash)
+    if (!valid) {
+      throw new UnauthorizedError('Credenciales inválidas')
+    }
+
+    // 3. Obtener el workspace del usuario
+    const workspaceUser = await db.workspaceUser.findFirst({
+      where: { userId: user.id },
+      include: { workspace: true },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    if (!workspaceUser) {
+      throw new ForbiddenError('El usuario no pertenece a ningún workspace')
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.avatar,
+      },
+      workspace: {
+        id: workspaceUser.workspace.id,
+        name: workspaceUser.workspace.name,
+        slug: workspaceUser.workspace.slug,
+      },
+      role: workspaceUser.role,
+    }
+  }
+
+  // ─── API Keys ─────────────────────────────────────────────────────
+  async createApiKey(workspaceId: string, name: string) {
+    // 1. Generar una clave aleatoria de 32 bytes en hexadecimal
+    // Ejemplo: "crm_a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0"
+    const raw = `${config.API_KEY_PREFIX}_${crypto.randomBytes(32).toString('hex')}`
+
+    // 2. Guardar solo los primeros caracteres para identificarla en la UI
+    // El usuario verá "crm_a3f8b2c1" pero no la clave completa
+    const keyPrefix = raw.substring(0, 12)
+
+    // 3. Hashear la clave — lo que se guarda en la DB
+    const keyHash = crypto
+      .createHash('sha256')
+      .update(raw)
+      .digest('hex')
+
+    const apiKey = await db.apiKey.create({
+      data: {
+        workspaceId,
+        name,
+        keyHash,
+        keyPrefix,
+      },
+    })
+
+    // Retornamos el raw UNA SOLA VEZ
+    // Después de esto es imposible recuperarla — igual que GitHub tokens
+    return { apiKey, rawKey: raw }
+  }
+
+  async verifyApiKey(rawKey: string): Promise<{ workspaceId: string } | null> {
+    // Hashear la clave recibida y buscar si existe ese hash
+    const keyHash = crypto
+      .createHash('sha256')
+      .update(rawKey)
+      .digest('hex')
+
+    const apiKey = await db.apiKey.findUnique({ where: { keyHash } })
+
+    if (!apiKey || !apiKey.isActive) return null
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) return null
+
+    // Actualizar lastUsedAt sin bloquear la respuesta
+    db.apiKey
+      .update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } })
+      .catch(() => {})
+
+    return { workspaceId: apiKey.workspaceId }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')  // quitar caracteres especiales
+      .replace(/\s+/g, '-')           // espacios → guiones
+      .replace(/-+/g, '-')            // múltiples guiones → uno solo
+      .substring(0, 50)               // máximo 50 caracteres
+  }
+  
+}
+
+  // Hook reutilizable — acepta JWT o API Key
+export async function authenticate(req: any): Promise<void> {
+    // 1. Intentar API Key primero
+    const rawKey = req.headers['x-api-key'] as string | undefined
+    if (rawKey) {
+        const authService = new AuthService()
+        const result = await authService.verifyApiKey(rawKey)
+      if (!result) throw { statusCode: 401, message: 'API Key inválida' }
+    
+      // Simular el mismo formato que el JWT para que el resto del código funcione
+      req.user = {
+        sub:         'api-key',
+        userId:      'api-key',
+        workspaceId: result.workspaceId,
+        role:        'api',
+        type:        'api-key',
+      }
+      return
+    }
+
+  // 2. Si no hay API Key, intentar JWT
+  await req.jwtVerify()
+}
