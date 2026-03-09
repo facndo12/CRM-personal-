@@ -96,6 +96,13 @@ export default function WebhooksPage() {
 
           <div className="space-y-4">
             <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Nombre del webhook (ej: n8n contactos) *"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+            />
+
+            <input
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
               placeholder="https://tu-servidor.com/webhook *"
@@ -107,13 +114,6 @@ export default function WebhooksPage() {
               onChange={(e) => setForm({ ...form, secret: e.target.value })}
               placeholder="Secret (opcional — para verificar firma HMAC)"
               className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
-            />
-            
-            <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Nombre del webhook (ej: n8n contactos) *"
-                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
             />
 
             <div>

@@ -38,9 +38,11 @@ export default function ContactsPage() {
 
   // Mutación para crear contacto
   const createMutation = useMutation({
-    mutationFn: (data: typeof form) => contactsApi.create(data),
+    mutationFn: (data: typeof form) => {
+      console.log('creando contacto con:', JSON.stringify(data))
+      return contactsApi.create(data)
+    },
     onSuccess: () => {
-      // Invalidar la query de contactos para que se recargue
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       setShowForm(false)
       setForm({ firstName: '', lastName: '', email: '', phone: '', source: 'MANUAL' })
