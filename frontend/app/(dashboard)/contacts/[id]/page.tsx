@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { contactsApi, activitiesApi, notesApi } from '@/lib/api'
 import type { Contact, Activity, Note } from '@/types'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft, Phone, Mail, Tag, Loader2,
   Plus, Trash2, MessageSquare, Clock,
@@ -39,12 +39,8 @@ const STATUS_COLORS: Record<string, string> = {
   CHURNED:   'bg-red-500/10 text-red-400 border-red-500/20',
 }
 
-export default function ContactDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = use(params)
+export default function ContactDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const router       = useRouter()
   const queryClient  = useQueryClient()
   const [tab, setTab]               = useState<'actividades' | 'notas'>('actividades')

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dealsApi } from '@/lib/api'
 import type { KanbanBoard, KanbanCard, KanbanColumn } from '@/types'
@@ -191,12 +192,8 @@ function CreateDealModal({
 }
 
 // ─── Página Kanban ────────────────────────────────────────────────
-export default function KanbanPage({
-  params,
-}: {
-  params: Promise<{ pipelineId: string }>
-}) {
-  const { pipelineId } = use(params)
+export default function KanbanPage() {
+  const { pipelineId } = useParams<{ pipelineId: string }>()
   const queryClient = useQueryClient()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [addingToStage, setAddingToStage] = useState<string | null>(null)
