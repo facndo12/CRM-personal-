@@ -147,3 +147,23 @@ export interface ApiKey {
   isActive: boolean
   createdAt: string
 }
+
+// ── Activities ───────────────────────────────────────────────────
+export interface Activity {
+  id:          string
+  type:        string
+  title:       string
+  description: string | null
+  contactId:   string | null
+  userId:      string | null
+  createdAt:   string
+}
+
+// ── Notes ────────────────────────────────────────────────────────
+export interface Note {
+  id:        string
+  content:   string
+  contactId: string | null
+  userId:    string | null
+  createdAt: string
+}

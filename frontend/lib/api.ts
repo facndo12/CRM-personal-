@@ -125,3 +125,28 @@ export const webhooksApi = {
 export const pipelinesApi = {
   list: () => api.get('/pipelines'),
 }
+
+//Actividades
+export const activitiesApi = {
+  list: (contactId: string) =>
+    api.get('/activities', { params: { contactId } }),
+
+  create: (data: {
+    contactId:   string
+    type:        string
+    title:       string
+    description?: string
+  }) => api.post('/activities', data),
+
+  delete: (id: string) => api.delete(`/activities/${id}`),
+}
+
+export const notesApi = {
+  list: (contactId: string) =>
+    api.get('/notes', { params: { contactId } }),
+
+  create: (data: { contactId: string; content: string }) =>
+    api.post('/notes', data),
+
+  delete: (id: string) => api.delete(`/notes/${id}`),
+}

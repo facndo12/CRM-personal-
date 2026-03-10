@@ -6,6 +6,7 @@ import { contactsApi } from '@/lib/api'
 import type { Contact, PaginatedResult } from '@/types'
 import { Search, Plus, Mail, Phone, Tag, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
+import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
   LEAD:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -143,8 +144,9 @@ export default function ContactsPage() {
       ) : (
         <div className="space-y-2">
           {data?.items.map((contact) => (
-            <div
+            <Link
               key={contact.id}
+              href={`/contacts/${contact.id}`}
               className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors"
             >
               {/* Avatar */}
@@ -208,7 +210,7 @@ export default function ContactsPage() {
               >
                 ✕
               </button>
-            </div>
+            </Link>
           ))}
         </div>
       )}
