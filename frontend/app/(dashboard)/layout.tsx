@@ -6,8 +6,7 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import {
   Users, KanbanSquare, Webhook,
-  Key, LogOut, LayoutDashboard,
-  Layers, 
+  Key, LogOut, LayoutDashboard, Layers,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -15,7 +14,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts',  label: 'Contactos', icon: Users            },
   { href: '/deals',     label: 'Deals',     icon: KanbanSquare     },
-  { href: '/pipelines',  label: 'Pipelines',  icon: Layers           },
+  { href: '/pipelines', label: 'Pipelines', icon: Layers           },
   { href: '/webhooks',  label: 'Webhooks',  icon: Webhook          },
   { href: '/api-keys',  label: 'API Keys',  icon: Key              },
 ]
@@ -39,14 +38,12 @@ export default function DashboardLayout({
     setChecked(true)
   }, [router])
 
-  // Mientras verifica el token, no renderizar nada
-  // Esto evita el redirect infinito
-  if (!checked) return null
-
   function handleLogout() {
     auth.clear()
     router.push('/login')
   }
+
+  if (!checked) return null
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
