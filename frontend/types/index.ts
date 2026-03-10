@@ -201,3 +201,20 @@ export interface DashboardData {
     createdAt:   string
   }[]
 }
+
+// ── Pipelines ──────────────────────────────────────────────────────
+export interface Stage {
+  id:         string
+  pipelineId: string
+  name:       string
+  color:      string
+  position:   number
+}
+
+export interface Pipeline {
+  id:          string
+  workspaceId: string
+  name:        string
+  stages:      Stage[]
+  createdAt:   string
+}

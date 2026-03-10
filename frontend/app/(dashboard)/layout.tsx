@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth'
 import {
   Users, KanbanSquare, Webhook,
   Key, LogOut, LayoutDashboard,
+  Layers, 
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -14,6 +15,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts',  label: 'Contactos', icon: Users            },
   { href: '/deals',     label: 'Deals',     icon: KanbanSquare     },
+  { href: '/pipelines',  label: 'Pipelines',  icon: Layers           },
   { href: '/webhooks',  label: 'Webhooks',  icon: Webhook          },
   { href: '/api-keys',  label: 'API Keys',  icon: Key              },
 ]

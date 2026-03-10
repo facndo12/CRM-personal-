@@ -123,7 +123,16 @@ export const webhooksApi = {
 // Pipeline
 
 export const pipelinesApi = {
-  list: () => api.get('/pipelines'),
+  list:        ()                                    => api.get('/pipelines'),
+  create:      (data: { name: string })              => api.post('/pipelines', data),
+  update:      (id: string, data: { name: string })  => api.patch(`/pipelines/${id}`, data),
+  delete:      (id: string)                          => api.delete(`/pipelines/${id}`),
+  createStage: (pipelineId: string, data: { name: string; color: string }) =>
+    api.post(`/pipelines/${pipelineId}/stages`, data),
+  updateStage: (pipelineId: string, stageId: string, data: { name?: string; color?: string }) =>
+    api.patch(`/pipelines/${pipelineId}/stages/${stageId}`, data),
+  deleteStage: (pipelineId: string, stageId: string) =>
+    api.delete(`/pipelines/${pipelineId}/stages/${stageId}`),
 }
 
 //Actividades
@@ -155,3 +164,4 @@ export const notesApi = {
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
 }
+
