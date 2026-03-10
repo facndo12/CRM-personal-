@@ -26,8 +26,7 @@ export default function DashboardLayout({
 }) {
   const router   = useRouter()
   const pathname = usePathname()
-  const [user, setUser]       = useState<ReturnType<typeof auth.get>>(null)
-  const [checked, setChecked] = useState(false)
+  const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
 
   useEffect(() => {
     if (!auth.isLoggedIn()) {
@@ -35,7 +34,6 @@ export default function DashboardLayout({
     } else {
       setUser(auth.get())
     }
-    setChecked(true)
   }, [router])
 
   function handleLogout() {
@@ -43,14 +41,9 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
-  if (!checked) {
-    return (
-      <div className="flex h-screen bg-gray-950 items-center justify-center">
-        {/* loading spinner o simplemente nada visible */}
-      </div>
-    )
-  }
-
+  // ⚠️ Nunca retornar condicionalmente antes de este punto.
+  // El layout SIEMPRE renderiza la misma estructura para que React
+  // mantenga un conteo de hooks consistente entre renders.
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
