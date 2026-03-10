@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { contactsApi, activitiesApi, notesApi } from '@/lib/api'
 import type { Contact, Activity, Note } from '@/types'
@@ -44,7 +44,7 @@ export default function ContactDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = require('react').use(params)
+  const { id } = use(params)
   const router       = useRouter()
   const queryClient  = useQueryClient()
   const [tab, setTab]               = useState<'actividades' | 'notas'>('actividades')
