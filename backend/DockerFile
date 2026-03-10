@@ -1,0 +1,28 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar pnpm
+RUN npm install -g pnpm
+
+# Copiar archivos de dependencias
+COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma/
+
+# Instalar dependencias
+RUN pnpm install --frozen-lockfile
+
+# Copiar código fuente
+COPY . .
+
+# Generar Prisma client
+RUN pnpm exec prisma generate
+
+# Compilar TypeScript
+RUN pnpm exec tsc --outDir dist
+
+# Exponer puerto
+EXPOSE 3000
+
+# Correr migraciones y arrancar
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/app.js"]
