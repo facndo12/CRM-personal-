@@ -10,7 +10,7 @@ COPY backend/package.json backend/pnpm-lock.yaml ./
 COPY backend/prisma ./prisma/
 
 # Instalar dependencias
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Copiar código fuente
 COPY backend/ .
