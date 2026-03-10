@@ -43,7 +43,13 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
-  if (!checked) return null
+  if (!checked) {
+    return (
+      <div className="flex h-screen bg-gray-950 items-center justify-center">
+        {/* loading spinner o simplemente nada visible */}
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
