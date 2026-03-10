@@ -6,14 +6,14 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copiar archivos de dependencias
-COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma/
+COPY backend/package.json backend/pnpm-lock.yaml ./
+COPY backend/prisma ./prisma/
 
 # Instalar dependencias
 RUN pnpm install --frozen-lockfile
 
 # Copiar código fuente
-COPY . .
+COPY backend/ .
 
 # Generar Prisma client
 RUN pnpm exec prisma generate
