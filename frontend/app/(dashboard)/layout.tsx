@@ -5,19 +5,17 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import {
-  Users,
-  KanbanSquare,
-  Webhook,
-  Key,
-  LogOut,
+  Users, KanbanSquare, Webhook,
+  Key, LogOut, LayoutDashboard,
 } from 'lucide-react'
 import clsx from 'clsx'
 
 const navItems = [
-  { href: '/contacts', label: 'Contactos',  icon: Users         },
-  { href: '/deals',    label: 'Deals',      icon: KanbanSquare  },
-  { href: '/webhooks', label: 'Webhooks',   icon: Webhook       },
-  { href: '/api-keys', label: 'API Keys',   icon: Key           },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/contacts',  label: 'Contactos', icon: Users            },
+  { href: '/deals',     label: 'Deals',     icon: KanbanSquare     },
+  { href: '/webhooks',  label: 'Webhooks',  icon: Webhook          },
+  { href: '/api-keys',  label: 'API Keys',  icon: Key              },
 ]
 
 export default function DashboardLayout({
@@ -27,20 +25,21 @@ export default function DashboardLayout({
 }) {
   const router   = useRouter()
   const pathname = usePathname()
+  const [user, setUser]       = useState<ReturnType<typeof auth.get>>(null)
+  const [checked, setChecked] = useState(false)
 
-  // Proteger todas las rutas del dashboard
-  // Si no hay token, redirigir al login
   useEffect(() => {
     if (!auth.isLoggedIn()) {
       router.push('/login')
+    } else {
+      setUser(auth.get())
     }
+    setChecked(true)
   }, [router])
 
-  const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
-
-    useEffect(() => {
-        setUser(auth.get())
-    }, [])
+  // Mientras verifica el token, no renderizar nada
+  // Esto evita el redirect infinito
+  if (!checked) return null
 
   function handleLogout() {
     auth.clear()
@@ -49,11 +48,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
-
-      {/* Sidebar */}
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-
-        {/* Logo y workspace */}
         <div className="p-5 border-b border-gray-800">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold">
@@ -70,12 +65,10 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        {/* Navegación */}
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
-            const Icon    = item.icon
-            const active  = pathname.startsWith(item.href)
-
+            const Icon   = item.icon
+            const active = pathname.startsWith(item.href)
             return (
               <Link
                 key={item.href}
@@ -94,7 +87,6 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* Footer del sidebar */}
         <div className="p-3 border-t border-gray-800">
           <button
             onClick={handleLogout}
@@ -106,11 +98,9 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      {/* Contenido principal */}
       <main className="flex-1 overflow-auto">
         {children}
       </main>
-
     </div>
   )
 }

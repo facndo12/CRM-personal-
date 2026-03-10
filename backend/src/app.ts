@@ -15,6 +15,7 @@ import { inboundRoutes } from './modules/inbound/inbound.routes'
 import { pipelineRoutes } from './modules/pipelines/pipeline.routes'
 import { activityRoutes } from './modules/activities/activity.routes'
 import { noteRoutes }     from './modules/notes/note.routes'
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 
 async function bootstrap() {
   // ─── Servidor ──────────────────────────────────────────────────
@@ -108,6 +109,7 @@ async function bootstrap() {
   await app.register(pipelineRoutes, { prefix: `${API}/pipelines` })
   await app.register(activityRoutes, { prefix: `${API}/activities` })
   await app.register(noteRoutes,     { prefix: `${API}/notes`      })
+  await app.register(dashboardRoutes, { prefix: `${API}/dashboard` })
 
   // Health check — para verificar que el servidor está vivo
   app.get('/health', async () => ({

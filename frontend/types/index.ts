@@ -167,3 +167,37 @@ export interface Note {
   userId:    string | null
   createdAt: string
 }
+
+// ── Dashboard ─────────────────────────────────────────────────────
+export interface DashboardData {
+  contacts: {
+    total:    number
+    byStatus: { status: string; count: number }[]
+    recent:   {
+      id:        string
+      firstName: string
+      lastName:  string | null
+      status:    string
+      score:     number
+      createdAt: string
+    }[]
+  }
+  deals: {
+    total:         number
+    pipelineValue: number
+    byStage: {
+      stageId:   string
+      stageName: string
+      color:     string
+      count:     number
+      value:     number
+    }[]
+  }
+  recentActivities: {
+    id:          string
+    type:        string
+    title:       string
+    contactName: string | null
+    createdAt:   string
+  }[]
+}

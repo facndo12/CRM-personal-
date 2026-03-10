@@ -150,3 +150,8 @@ export const notesApi = {
 
   delete: (id: string) => api.delete(`/notes/${id}`),
 }
+
+//DASHBOARD
+export const dashboardApi = {
+  get: () => api.get('/dashboard'),
+}
