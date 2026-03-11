@@ -9,6 +9,8 @@ import {
   ForbiddenError,
 } from '../../types'
 import { Prisma } from '@prisma/client'
+import type { Role } from './roles'
+
 
 export class AuthService {
 
@@ -198,6 +200,106 @@ export class AuthService {
       .catch(() => {})
 
     return { workspaceId: apiKey.workspaceId }
+  }
+
+  // ─── Invitar usuario ──────────────────────────────────────────────
+  // Agrega un usuario existente (o crea uno nuevo) al workspace con el
+  // rol indicado. Solo owner y admin pueden invocar este método —
+  // la verificación de rol se hace en la ruta antes de llegar aquí.
+  async inviteUser(data: {
+    workspaceId: string
+    email:       string
+    firstName:   string
+    lastName?:   string
+    role:        Role
+    password:    string
+  }) {
+    // Verificar si el email ya tiene cuenta global
+    let user = await db.user.findUnique({ where: { email: data.email } })
+
+    if (!user) {
+      // Crear usuario nuevo
+      const passwordHash = await bcrypt.hash(data.password, 12)
+      user = await db.user.create({
+        data: {
+          email:        data.email,
+          passwordHash,
+          firstName:    data.firstName,
+          lastName:     data.lastName,
+        },
+      })
+    }
+
+    // Verificar que no sea ya miembro del workspace
+    const existing = await db.workspaceUser.findUnique({
+      where: { workspaceId_userId: { workspaceId: data.workspaceId, userId: user.id } },
+    })
+    if (existing) {
+      throw new ConflictError('El usuario ya es miembro de este workspace')
+    }
+
+    // Asociar al workspace con el rol elegido
+    await db.workspaceUser.create({
+      data: {
+        workspaceId: data.workspaceId,
+        userId:      user.id,
+        role:        data.role,
+      },
+    })
+
+    return {
+      user: {
+        id:        user.id,
+        email:     user.email,
+        firstName: user.firstName,
+        lastName:  user.lastName,
+      },
+      role: data.role,
+    }
+  }
+
+  // ─── Listar miembros del workspace ────────────────────────────────
+  async listMembers(workspaceId: string) {
+    const members = await db.workspaceUser.findMany({
+      where:   { workspaceId },
+      include: { user: { select: { id: true, email: true, firstName: true, lastName: true, avatar: true, createdAt: true } } },
+      orderBy: { createdAt: 'asc' },
+    })
+    return members.map((m) => ({
+      id:        m.id,
+      role:      m.role,
+      joinedAt:  m.createdAt,
+      user:      m.user,
+    }))
+  }
+
+  // ─── Cambiar rol de un miembro ────────────────────────────────────
+  async updateMemberRole(workspaceId: string, memberId: string, newRole: Role) {
+    const member = await db.workspaceUser.findFirst({
+      where: { id: memberId, workspaceId },
+    })
+    if (!member) throw new NotFoundError('WorkspaceMember', memberId)
+    if (member.role === 'owner') {
+      throw new ForbiddenError('No se puede cambiar el rol del owner')
+    }
+
+    return db.workspaceUser.update({
+      where: { id: memberId },
+      data:  { role: newRole },
+    })
+  }
+
+  // ─── Remover miembro ──────────────────────────────────────────────
+  async removeMember(workspaceId: string, memberId: string) {
+    const member = await db.workspaceUser.findFirst({
+      where: { id: memberId, workspaceId },
+    })
+    if (!member) throw new NotFoundError('WorkspaceMember', memberId)
+    if (member.role === 'owner') {
+      throw new ForbiddenError('No se puede eliminar al owner del workspace')
+    }
+
+    await db.workspaceUser.delete({ where: { id: memberId } })
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────

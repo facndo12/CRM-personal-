@@ -1,3 +1,12 @@
+// ─── Roles ────────────────────────────────────────────────────────
+export type Role = 'owner' | 'admin' | 'member' | 'viewer'
+
+/** Helper para verificar si un rol tiene acceso a una acción */
+export function canDo(userRole: Role | string | undefined, allowedRoles: Role[]): boolean {
+  if (!userRole) return false
+  return allowedRoles.includes(userRole as Role)
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────
 export interface User {
   id: string

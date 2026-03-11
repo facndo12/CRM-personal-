@@ -24,11 +24,14 @@ api.interceptors.request.use((config) => {
 })
 
 // Interceptor de respuesta — maneja errores globalmente
-// Si el token expiró (401), limpia la sesión y redirige al login
+// Si el token expiró (401), limpia la sesión y redirige al login.
+// Omitimos la redirección si el error de auth proviene del propio login.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthRoute = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')
+    
+    if (error.response?.status === 401 && !isAuthRoute) {
       auth.clear()
       window.location.href = '/login'
     }
@@ -182,5 +185,20 @@ export const notesApi = {
 //DASHBOARD
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
+}
+
+// ─── Equipo ────────────────────────────────────────────────────────
+export const teamApi = {
+  list: () =>
+    api.get('/auth/team'),
+
+  invite: (data: { email: string; firstName: string; lastName?: string; password: string; role: 'admin' | 'member' | 'viewer' }) =>
+    api.post('/auth/invite', data),
+
+  updateRole: (memberId: string, role: 'admin' | 'member' | 'viewer') =>
+    api.patch(`/auth/team/${memberId}/role`, { role }),
+
+  remove: (memberId: string) =>
+    api.delete(`/auth/team/${memberId}`),
 }
 

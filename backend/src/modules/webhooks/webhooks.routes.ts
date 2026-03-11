@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../core/database'
 import type { CRMEvent } from '../../types'
 import { authenticate } from '../../core/auth/auth.service'
+import { requireRole } from '../../core/auth/require-role'
 
 // Todos los eventos disponibles para suscribirse
 // Cuando el usuario configura un webhook, elige cuáles le interesan
@@ -34,9 +35,13 @@ const webhookSchema = z.object({
 })
 
 export async function webhookRoutes(app: FastifyInstance) {
+  // Autenticación requerida para todas las rutas
   app.addHook('onRequest', async (req) => {
     await authenticate(req)
   })
+
+  // Todos los endpoints de webhooks son solo para owner y admin
+  app.addHook('preHandler', requireRole('owner', 'admin'))
 
   // ─── GET /webhooks/events ──────────────────────────────────────
   // Lista todos los eventos disponibles — útil para el frontend

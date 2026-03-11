@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { ContactService } from './contact.service'
 import type { EventBus } from '../../core/event-bus'
 import { authenticate } from '../../core/auth/auth.service'
+import { requireRole } from '../../core/auth/require-role'
 
 // Schemas de validación con Zod
 // Zod valida los datos que llegan en el body del request
@@ -47,12 +48,13 @@ export async function contactRoutes(
 ) {
   const service = new ContactService(options.eventBus)
 
-  // Todas las rutas de este módulo requieren JWT
+  // Todas las rutas de este módulo requieren autenticación
   app.addHook('onRequest', async (req) => {
     await authenticate(req)
   })
 
   // ─── GET /contacts ─────────────────────────────────────────────
+  // Todos los roles pueden leer contactos
   app.get('/', async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const filters = filtersSchema.parse(req.query)
@@ -61,7 +63,8 @@ export async function contactRoutes(
   })
 
   // ─── POST /contacts ────────────────────────────────────────────
-  app.post('/', async (req, reply) => {
+  // viewer no puede crear contactos
+  app.post('/', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const body = createContactSchema.parse(req.body)
     const contact = await service.create(ctx.workspaceId, body, ctx.userId)
@@ -76,7 +79,8 @@ export async function contactRoutes(
   })
 
   // ─── PATCH /contacts/:id ───────────────────────────────────────
-  app.patch<{ Params: { id: string } }>('/:id', async (req, reply) => {
+  // viewer no puede editar contactos
+  app.patch<{ Params: { id: string } }>('/:id', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const body = updateContactSchema.parse(req.body)
     const contact = await service.update(
@@ -89,14 +93,16 @@ export async function contactRoutes(
   })
 
   // ─── DELETE /contacts/:id ──────────────────────────────────────
-  app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
+  // Solo owner y admin pueden borrar contactos
+  app.delete<{ Params: { id: string } }>('/:id', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     await service.delete(ctx.workspaceId, req.params.id, ctx.userId)
     return reply.status(204).send()
   })
 
   // ─── POST /contacts/:id/merge ──────────────────────────────────
-  app.post<{ Params: { id: string } }>('/:id/merge', async (req, reply) => {
+  // Solo owner y admin pueden mergear contactos
+  app.post<{ Params: { id: string } }>('/:id/merge', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const { loserId } = z.object({
       loserId: z.string()
