@@ -39,12 +39,11 @@ async function bootstrap() {
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
       const allowed = [
-        config.FRONTEND_URL,
+      config.FRONTEND_URL,
         'http://localhost:3001',
         'http://localhost:3000',
       ]
-      // Permitir requests sin origin (curl, Postman, mobile apps)
-      if (!origin || allowed.includes(origin)) {
+      if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
         cb(null, true)
       } else {
         cb(new Error('Not allowed by CORS'), false)
