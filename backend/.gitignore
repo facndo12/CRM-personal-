@@ -9,9 +9,6 @@ dist/
 .env.local
 .env.production
 
-# Prisma
-prisma/migrations/
-
 # OS
 .DS_Store
 Thumbs.db
