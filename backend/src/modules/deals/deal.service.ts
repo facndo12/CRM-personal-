@@ -291,18 +291,33 @@ export class DealService {
         },
       })
 
-      // Compactar posiciones en la columna origen para cerrar el hueco
+      // Compactar posiciones para que siempre sean 0, 1, 2, 3…
+      // Se compacta SIEMPRE (no solo al cambiar columna) para evitar que
+      // los movimientos dentro de la misma columna acumulen huecos y
+      // duplicados que desincronicen el orden del Kanban.
       if (stageChanged) {
-        const remaining = await tx.deal.findMany({
+        // Si cambió de columna: compactar la columna ORIGEN (quedó con un hueco)
+        const remainingInOrigin = await tx.deal.findMany({
           where: { workspaceId, stageId: prevStageId },
           orderBy: { position: 'asc' },
         })
         await Promise.all(
-          remaining.map((d, i) =>
+          remainingInOrigin.map((d, i) =>
             tx.deal.update({ where: { id: d.id }, data: { position: i } })
           )
         )
       }
+
+      // Compactar siempre la columna DESTINO (misma o distinta)
+      const remainingInDest = await tx.deal.findMany({
+        where: { workspaceId, stageId: newStageId },
+        orderBy: { position: 'asc' },
+      })
+      await Promise.all(
+        remainingInDest.map((d, i) =>
+          tx.deal.update({ where: { id: d.id }, data: { position: i } })
+        )
+      )
     })
 
     const updated = await db.deal.findUniqueOrThrow({ where: { id: dealId } })
@@ -410,15 +425,15 @@ export class DealService {
     // Soft delete — igual que contacts, preserva el historial
     await db.deal.update({
       where: { id },
-      data: {isArchived: true },
-  })
+      data: { isArchived: true },
+    })
 
-  await this.eventBus.emit('deal.deleted', {
-    workspaceId,
-    dealId: id,
-    deletedBy: userId ?? 'system',
-  })
-}
+    await this.eventBus.emit('deal.deleted', {
+      workspaceId,
+      dealId: id,
+      deletedBy: userId ?? 'system',
+    })
+  }
 
   // ─── Helpers privados ────────────────────────────────────────────
   private async logActivity(

@@ -202,14 +202,30 @@ export async function inboundRoutes(
     }
 
     // Si el mensaje es entrante y no existe el contacto,
-    // crearlo automáticamente con los datos disponibles
+    // crearlo automáticamente con los datos disponibles.
     if (!contactId && body.direction === 'inbound') {
+      // Si `from` parece un número de teléfono (solo dígitos y +),
+      // no usarlo como nombre — queda ilegible en el listado.
+      const fromIsPhone = /^[+\d\s\-()]+$/.test(body.from)
+      const channel = body.channel.charAt(0).toUpperCase() + body.channel.slice(1)
+
       const newContact = await contactService.create(workspaceId, {
-        firstName: body.from,
+        firstName: fromIsPhone ? `Contacto ${channel}` : body.from,
         phone:     body.channel === 'whatsapp' ? body.from : undefined,
         source:    body.channel.toUpperCase(),
       })
       contactId = newContact.id
+    }
+
+    // Si el mensaje es outbound y no hay contactId conocido, no se puede
+    // registrar la actividad sin corromper la DB con un entityId inválido.
+    // El cliente debe proporcionar contactId, contactEmail o contactPhone.
+    if (!contactId) {
+      return reply.status(422).send({
+        error: 'CONTACT_NOT_FOUND',
+        message:
+          'No se encontró el contacto. Proporcioná contactId, contactEmail o contactPhone válidos.',
+      })
     }
 
     // Determinar el tipo de actividad según canal y dirección
@@ -227,7 +243,7 @@ export async function inboundRoutes(
         workspaceId,
         type:        activityType,
         entityType:  'contact',
-        entityId:    contactId ?? 'unknown',
+        entityId:    contactId,
         contactId,
         source:      body.channel,
         title:       `${body.channel} ${body.direction === 'inbound' ? 'recibido' : 'enviado'}`,

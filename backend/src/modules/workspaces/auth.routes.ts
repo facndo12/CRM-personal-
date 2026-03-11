@@ -117,7 +117,6 @@ export async function authRoutes(app: FastifyInstance) {
     await req.jwtVerify()
     const ctx = req.user as { workspaceId: string }
 
-    const { db } = await import('../../core/database')
     const keys = await db.apiKey.findMany({
       where: { workspaceId: ctx.workspaceId, isActive: true },
       orderBy: { createdAt: 'desc' },

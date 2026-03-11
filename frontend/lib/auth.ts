@@ -13,6 +13,7 @@ export interface StoredAuth {
 
 export const auth = {
   save(data: StoredAuth) {
+    if (typeof window === 'undefined') return
     localStorage.setItem(TOKEN_KEY, data.token)
     localStorage.setItem(USER_KEY, JSON.stringify(data))
   },
@@ -34,6 +35,7 @@ export const auth = {
   },
 
   clear() {
+    if (typeof window === 'undefined') return
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
   },

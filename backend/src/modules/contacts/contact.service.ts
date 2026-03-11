@@ -176,7 +176,7 @@ export class ContactService {
     }
 
     const contact = await db.contact.update({
-      where: { id },
+      where: { id, workspaceId },
       data: {
         ...(data.firstName !== undefined && { firstName: data.firstName }),
         ...(data.lastName !== undefined && { lastName: data.lastName }),

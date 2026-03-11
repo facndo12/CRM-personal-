@@ -75,10 +75,14 @@ export class EventBus {
     const workspaceId = payload.workspaceId as string | undefined
     if (!workspaceId) return
 
-    // 2. Guardar en EventLog — registro permanente de todo lo que pasó
-    db.eventLog
-      .create({ data: { workspaceId, event, payload: payload as any } })
-      .catch((err: unknown) => console.error('EventLog error:', err))
+    // 2. Guardar en EventLog — registro permanente de todo lo que pasó.
+    // Se usa try/catch con await para que el error no pase desapercibido:
+    // antes el .catch() silencioso podía perder eventos sin dejar rastro.
+    try {
+      await db.eventLog.create({ data: { workspaceId, event, payload: payload as any } })
+    } catch (err: unknown) {
+      console.error('EventLog error — el evento no se persistió:', err)
+    }
 
     // 3. Despachar webhooks registrados para este evento
     await this.dispatchWebhooks(event, payload, workspaceId)
@@ -147,11 +151,23 @@ export class EventBus {
       headers['X-CRM-Signature'] = `sha256=${signature}`
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-    })
+    // Timeout de 10s — si el endpoint no responde, cancelar el fetch.
+    // Sin esto el worker queda colgado indefinidamente y puede bloquear
+    // todos los slots de concurrencia de la cola.
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 10_000)
+
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     // Actualizar estadísticas del webhook
     await db.webhookEndpoint.update({

@@ -1,5 +1,9 @@
 import axios from 'axios'
 import { auth } from './auth'
+import type {
+  Contact, Deal, Webhook,
+  Pipeline, Stage,
+} from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
@@ -58,17 +62,23 @@ export const authApi = {
 }
 
 // ─── Contactos ────────────────────────────────────────────────────
+type ContactFiltersQuery = {
+  search?: string; status?: string; page?: number
+  limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc'
+  scoreMin?: number; scoreMax?: number
+}
+
 export const contactsApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: ContactFiltersQuery) =>
     api.get('/contacts', { params }),
 
   get: (id: string) =>
     api.get(`/contacts/${id}`),
 
-  create: (data: Record<string, unknown>) =>
+  create: (data: Omit<Partial<Contact>, 'id' | 'workspaceId' | 'score' | 'isArchived' | 'createdAt' | 'updatedAt'> & { firstName: string }) =>
     api.post('/contacts', data),
 
-  update: (id: string, data: Record<string, unknown>) =>
+  update: (id: string, data: Omit<Partial<Contact>, 'id' | 'workspaceId' | 'score' | 'isArchived' | 'createdAt' | 'updatedAt'>) =>
     api.patch(`/contacts/${id}`, data),
 
   delete: (id: string) =>
@@ -79,17 +89,25 @@ export const contactsApi = {
 }
 
 // ─── Deals ────────────────────────────────────────────────────────
+type CreateDealPayload = {
+  title: string; pipelineId: string; stageId: string
+  value?: number; currency?: string; probability?: number
+  companyId?: string; ownerId?: string; contactIds?: string[]
+  expectedCloseDate?: string
+}
+type UpdateDealPayload = Omit<Partial<CreateDealPayload>, 'pipelineId' | 'stageId'>
+
 export const dealsApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: { pipelineId?: string; stageId?: string; status?: string; page?: number; limit?: number }) =>
     api.get('/deals', { params }),
 
   getKanban: (pipelineId: string) =>
     api.get(`/deals/kanban/${pipelineId}`),
 
-  create: (data: Record<string, unknown>) =>
+  create: (data: CreateDealPayload) =>
     api.post('/deals', data),
 
-  update: (id: string, data: Record<string, unknown>) =>
+  update: (id: string, data: UpdateDealPayload) =>
     api.patch(`/deals/${id}`, data),
 
   move: (id: string, stageId: string, position?: number) =>
@@ -100,6 +118,8 @@ export const dealsApi = {
 }
 
 // ─── Webhooks ─────────────────────────────────────────────────────
+type WebhookPayload = { name: string; url: string; events: string[]; secret?: string }
+
 export const webhooksApi = {
   list: () =>
     api.get('/webhooks'),
@@ -107,10 +127,10 @@ export const webhooksApi = {
   getEvents: () =>
     api.get('/webhooks/events'),
 
-  create: (data: Record<string, unknown>) =>
+  create: (data: WebhookPayload) =>
     api.post('/webhooks', data),
 
-  update: (id: string, data: Record<string, unknown>) =>
+  update: (id: string, data: Partial<WebhookPayload> & { isActive?: boolean }) =>
     api.patch(`/webhooks/${id}`, data),
 
   delete: (id: string) =>
@@ -120,18 +140,17 @@ export const webhooksApi = {
     api.post(`/webhooks/${id}/test`),
 }
 
-// Pipeline
-
+// ─── Pipelines ────────────────────────────────────────────────────
 export const pipelinesApi = {
-  list:        ()                                    => api.get('/pipelines'),
-  create:      (data: { name: string })              => api.post('/pipelines', data),
-  update:      (id: string, data: { name: string })  => api.patch(`/pipelines/${id}`, data),
-  delete:      (id: string)                          => api.delete(`/pipelines/${id}`),
-  createStage: (pipelineId: string, data: { name: string; color: string }) =>
+  list:        ()                                                            => api.get('/pipelines'),
+  create:      (data: Pick<Pipeline, 'name'>)                                => api.post('/pipelines', data),
+  update:      (id: string, data: Pick<Pipeline, 'name'>)                    => api.patch(`/pipelines/${id}`, data),
+  delete:      (id: string)                                                  => api.delete(`/pipelines/${id}`),
+  createStage: (pipelineId: string, data: Pick<Stage, 'name' | 'color'>)    =>
     api.post(`/pipelines/${pipelineId}/stages`, data),
-  updateStage: (pipelineId: string, stageId: string, data: { name?: string; color?: string }) =>
+  updateStage: (pipelineId: string, stageId: string, data: Partial<Pick<Stage, 'name' | 'color'>>) =>
     api.patch(`/pipelines/${pipelineId}/stages/${stageId}`, data),
-  deleteStage: (pipelineId: string, stageId: string) =>
+  deleteStage: (pipelineId: string, stageId: string)                        =>
     api.delete(`/pipelines/${pipelineId}/stages/${stageId}`),
 }
 

@@ -27,6 +27,10 @@ export default function DashboardLayout({
   const router   = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
+  // `checking` empieza en true para bloquear el render hasta confirmar sesión.
+  // Sin esto, el sidebar y la nav se muestran brevemente antes de redirigir
+  // al login cuando el usuario no está autenticado (flash de UI).
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
     if (!auth.isLoggedIn()) {
@@ -34,6 +38,7 @@ export default function DashboardLayout({
     } else {
       setUser(auth.get())
     }
+    setChecking(false)
   }, [router])
 
   function handleLogout() {
@@ -41,9 +46,15 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
-  // ⚠️ Nunca retornar condicionalmente antes de este punto.
-  // El layout SIEMPRE renderiza la misma estructura para que React
-  // mantenga un conteo de hooks consistente entre renders.
+  // Mientras se verifica la sesión, mostrar spinner para evitar el flash
+  if (checking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-950">
+        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">

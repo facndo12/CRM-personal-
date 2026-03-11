@@ -8,6 +8,7 @@ import {
   NotFoundError,
   ForbiddenError,
 } from '../../types'
+import { Prisma } from '@prisma/client'
 
 export class AuthService {
 
@@ -33,59 +34,74 @@ export class AuthService {
     // 12 es el balance recomendado para producción.
     const passwordHash = await bcrypt.hash(data.password, 12)
 
-    // 3. Generar slug único para el workspace
-    const slug = this.generateSlug(data.workspaceName)
-    const existingSlug = await db.workspace.findUnique({ where: { slug } })
-    const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug
+    // 3. Generar slug único para el workspace.
+    // El sufijo aleatorio (4 bytes = 8 hex chars) elimina la necesidad de
+    // pre-verificar disponibilidad con un SELECT separado, evitando la
+    // race condition que ocurría cuando dos usuarios se registraban
+    // simultáneamente con el mismo workspaceName.
+    const baseSlug = this.generateSlug(data.workspaceName)
+    const uniqueSuffix = crypto.randomBytes(4).toString('hex') // ej: "a3f8b2c1"
+    const finalSlug = `${baseSlug}-${uniqueSuffix}`
 
     // 4. Crear usuario + workspace en una transacción
     // Si algo falla en el medio, ninguno de los dos se crea.
     // Nunca querés un usuario sin workspace o un workspace sin owner.
-    const result = await db.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email: data.email,
-          passwordHash,
-          firstName: data.firstName,
-          lastName: data.lastName,
-        },
-      })
+    let result: { user: Awaited<ReturnType<typeof db.user.create>>; workspace: Awaited<ReturnType<typeof db.workspace.create>> }
+    try {
+      result = await db.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: data.email,
+            passwordHash,
+            firstName: data.firstName,
+            lastName: data.lastName,
+          },
+        })
 
-      const workspace = await tx.workspace.create({
-        data: {
-          name: data.workspaceName,
-          slug: finalSlug,
-          users: {
-            create: {
-              userId: user.id,
-              role: 'owner',
+        const workspace = await tx.workspace.create({
+          data: {
+            name: data.workspaceName,
+            slug: finalSlug,
+            users: {
+              create: {
+                userId: user.id,
+                role: 'owner',
+              },
             },
           },
-        },
-      })
+        })
 
-      // 5. Crear pipeline por defecto con sus etapas
-      // Todo workspace nuevo arranca con un pipeline listo para usar
-      await tx.pipeline.create({
-        data: {
-          workspaceId: workspace.id,
-          name: 'Sales Pipeline',
-          isDefault: true,
-          stages: {
-            create: [
-              { name: 'Nuevo Lead',  position: 0, color: '#94a3b8', probability: 10  },
-              { name: 'Contactado',  position: 1, color: '#60a5fa', probability: 25  },
-              { name: 'Calificado',  position: 2, color: '#818cf8', probability: 50  },
-              { name: 'Propuesta',   position: 3, color: '#f59e0b', probability: 75  },
-              { name: 'Ganado',      position: 4, color: '#22c55e', probability: 100, isWon: true  },
-              { name: 'Perdido',     position: 5, color: '#ef4444', probability: 0,   isLost: true },
-            ],
+        // 5. Crear pipeline por defecto con sus etapas
+        // Todo workspace nuevo arranca con un pipeline listo para usar
+        await tx.pipeline.create({
+          data: {
+            workspaceId: workspace.id,
+            name: 'Sales Pipeline',
+            isDefault: true,
+            stages: {
+              create: [
+                { name: 'Nuevo Lead',  position: 0, color: '#94a3b8', probability: 10  },
+                { name: 'Contactado',  position: 1, color: '#60a5fa', probability: 25  },
+                { name: 'Calificado',  position: 2, color: '#818cf8', probability: 50  },
+                { name: 'Propuesta',   position: 3, color: '#f59e0b', probability: 75  },
+                { name: 'Ganado',      position: 4, color: '#22c55e', probability: 100, isWon: true  },
+                { name: 'Perdido',     position: 5, color: '#ef4444', probability: 0,   isLost: true },
+              ],
+            },
           },
-        },
-      })
+        })
 
-      return { user, workspace }
-    })
+        return { user, workspace }
+      })
+    } catch (err) {
+      // P2002 = unique constraint violation de Prisma.
+      // Aunque el slug ya lleva sufijo aleatorio, capturamos igualmente
+      // para manejar cualquier otro campo único que pueda colisionar.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictError('No se pudo crear el workspace. Intentá nuevamente.')
+      }
+      throw err
+    }
 
     return result
   }
@@ -194,18 +210,18 @@ export class AuthService {
       .replace(/-+/g, '-')            // múltiples guiones → uno solo
       .substring(0, 50)               // máximo 50 caracteres
   }
-  
-}
 
-  // Hook reutilizable — acepta JWT o API Key
-export async function authenticate(req: any): Promise<void> {
+  // ─── Hook de autenticación ────────────────────────────────────────
+  // Acepta JWT o API Key. Método estático para no instanciar
+  // AuthService innecesariamente en cada request.
+  static async authenticate(req: any): Promise<void> {
     // 1. Intentar API Key primero
     const rawKey = req.headers['x-api-key'] as string | undefined
     if (rawKey) {
-        const authService = new AuthService()
-        const result = await authService.verifyApiKey(rawKey)
+      const authService = new AuthService()
+      const result = await authService.verifyApiKey(rawKey)
       if (!result) throw { statusCode: 401, message: 'API Key inválida' }
-    
+
       // Simular el mismo formato que el JWT para que el resto del código funcione
       req.user = {
         sub:         'api-key',
@@ -217,6 +233,7 @@ export async function authenticate(req: any): Promise<void> {
       return
     }
 
-  // 2. Si no hay API Key, intentar JWT
-  await req.jwtVerify()
-}
+    // 2. Si no hay API Key, intentar JWT
+    await req.jwtVerify()
+  }
+}
