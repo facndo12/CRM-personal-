@@ -46,15 +46,14 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
-  // Mientras se verifica la sesión, mostrar spinner para evitar el flash
-  if (checking) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-950">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
+  // IMPORTANTE: nunca hacer un early return condicional aquí.
+  // Si se retorna un árbol distinto (ej: spinner sin children), React pierde
+  // el conteo de hooks de los componentes hijos (useSortable, useDroppable, etc.)
+  // y lanza el error #310: "Rendered more hooks than during the previous render".
+  //
+  // Solución: mantener SIEMPRE el mismo árbol. El spinner se superpone
+  // con CSS mientras checking=true, y children se oculta visualmente
+  // con opacity-0 — pero nunca se desmonta.
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
@@ -107,9 +106,15 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main className="relative flex-1 overflow-auto">
+        {/* Spinner superpuesto — visible solo mientras se verifica la sesión */}
+        {checking && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-950">
+            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
         {children}
       </main>
     </div>
   )
-}
+}
