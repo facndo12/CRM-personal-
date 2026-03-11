@@ -13,8 +13,13 @@ import type { Role } from './roles'
  */
 export function requireRole(...allowedRoles: Role[]) {
   return async (req: any): Promise<void> => {
-    const ctx = req.user as { role?: string } | undefined
+    // Permitir preflight requests de CORS
+    if (req.method === 'OPTIONS') {
+      return
+    }
 
+    const ctx = req.user as { role?: string } | undefined
+    
     if (!ctx?.role) {
       throw new ForbiddenError('No autenticado o rol no definido')
     }
@@ -27,3 +32,4 @@ export function requireRole(...allowedRoles: Role[]) {
     }
   }
 }
+
