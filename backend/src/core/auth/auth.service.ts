@@ -237,3 +237,7 @@ export class AuthService {
     await req.jwtVerify()
   }
 }
+// Re-exportacion para compatibilidad con los modulos de rutas que
+// importan `authenticate` directamente: import { authenticate } from '...'
+// Delega al metodo estatico de la clase para no duplicar logica.
+export const authenticate = AuthService.authenticate.bind(AuthService)
