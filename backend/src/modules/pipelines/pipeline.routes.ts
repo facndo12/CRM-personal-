@@ -22,7 +22,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Crear pipeline ───────────────────────────────────────────
-  app.post('/', async (req, reply) => {
+  app.post('/', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string }
     const body = z.object({
       name: z.string().min(1),
@@ -39,7 +39,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Actualizar pipeline ──────────────────────────────────────
-  app.patch('/:id', async (req, reply) => {
+  app.patch('/:id', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx    = req.user as { workspaceId: string }
     const { id } = req.params as { id: string }
     const body   = z.object({
@@ -60,7 +60,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Eliminar pipeline ────────────────────────────────────────
-  app.delete('/:id', async (req, reply) => {
+  app.delete('/:id', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx    = req.user as { workspaceId: string }
     const { id } = req.params as { id: string }
 
@@ -74,7 +74,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Crear stage ──────────────────────────────────────────────
-  app.post('/:id/stages', async (req, reply) => {
+  app.post('/:id/stages', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx    = req.user as { workspaceId: string }
     const { id } = req.params as { id: string }
     const body   = z.object({
@@ -102,7 +102,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Actualizar stage ─────────────────────────────────────────
-  app.patch('/:id/stages/:stageId', async (req, reply) => {
+  app.patch('/:id/stages/:stageId', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string }
     const { id, stageId } = req.params as { id: string; stageId: string }
     const body = z.object({
@@ -124,7 +124,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
   })
 
   // ─── Eliminar stage ───────────────────────────────────────────
-  app.delete('/:id/stages/:stageId', async (req, reply) => {
+  app.delete('/:id/stages/:stageId', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string }
     const { id, stageId } = req.params as { id: string; stageId: string }
 

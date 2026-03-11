@@ -66,7 +66,7 @@ export async function dealRoutes(
   )
 
   // ─── POST /deals ───────────────────────────────────────────────
-  app.post('/', async (req, reply) => {
+  app.post('/', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const body = createDealSchema.parse(req.body)
     const deal = await service.create(ctx.workspaceId, body, ctx.userId)

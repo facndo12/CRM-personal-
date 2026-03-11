@@ -10,13 +10,17 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 
+import type { Role } from '@/types'
+
+// roles?: undefined significa accesible para todos
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts',  label: 'Contactos', icon: Users            },
   { href: '/deals',     label: 'Deals',     icon: KanbanSquare     },
-  { href: '/pipelines', label: 'Pipelines', icon: Layers           },
-  { href: '/webhooks',  label: 'Webhooks',  icon: Webhook          },
-  { href: '/api-keys',  label: 'API Keys',  icon: Key              },
+  { href: '/pipelines', label: 'Pipelines', icon: Layers,           roles: ['owner', 'admin'] as Role[] },
+  { href: '/webhooks',  label: 'Webhooks',  icon: Webhook,          roles: ['owner', 'admin'] as Role[] },
+  { href: '/api-keys',  label: 'API Keys',  icon: Key,              roles: ['owner', 'admin'] as Role[] },
+  { href: '/team',      label: 'Equipo',    icon: Users,            roles: ['owner', 'admin'] as Role[] },
 ]
 
 export default function DashboardLayout({
@@ -74,7 +78,9 @@ export default function DashboardLayout({
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => !item.roles || item.roles.includes((user?.role ?? 'viewer') as Role))
+            .map((item) => {
             const Icon   = item.icon
             const active = pathname.startsWith(item.href)
             return (

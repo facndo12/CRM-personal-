@@ -184,3 +184,18 @@ export const dashboardApi = {
   get: () => api.get('/dashboard'),
 }
 
+// ─── Equipo ────────────────────────────────────────────────────────
+export const teamApi = {
+  list: () =>
+    api.get('/auth/team'),
+
+  invite: (data: { email: string; firstName: string; lastName?: string; password: string; role: 'admin' | 'member' | 'viewer' }) =>
+    api.post('/auth/invite', data),
+
+  updateRole: (memberId: string, role: 'admin' | 'member' | 'viewer') =>
+    api.patch(`/auth/team/${memberId}/role`, { role }),
+
+  remove: (memberId: string) =>
+    api.delete(`/auth/team/${memberId}`),
+}
+
