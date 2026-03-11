@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../../core/database'
 import { z } from 'zod'
 import { AuthService } from '../../core/auth/auth.service'
+import { requireRole } from '../../core/auth/require-role'
+import { INVITABLE_ROLES } from '../../core/auth/roles'
+import { authenticate } from '../../core/auth/auth.service'
 
 const authService = new AuthService()
 
@@ -136,6 +139,71 @@ export async function authRoutes(app: FastifyInstance) {
       where: { id, workspaceId: ctx.workspaceId },
     })
 
+    return reply.code(204).send()
+  })
+
+  // ─── POST /auth/invite ─────────────────────────────────────────
+  // Invita a un usuario al workspace con un rol específico.
+  // Solo owner y admin pueden invitar.
+  app.post('/invite', {
+    preHandler: [authenticate, requireRole('owner', 'admin')],
+  }, async (req, reply) => {
+    const ctx = req.user as { workspaceId: string; role: string }
+
+    const schema = z.object({
+      email:     z.string().email(),
+      firstName: z.string().min(1),
+      lastName:  z.string().optional(),
+      password:  z.string().min(8),
+      // Admin solo puede invitar member/viewer, no otros admins
+      role: z.enum(['admin', 'member', 'viewer']).refine(
+        (r) => ctx.role === 'owner' || r !== 'admin',
+        { message: 'Solo el owner puede invitar admins' }
+      ),
+    })
+
+    const body = schema.parse(req.body)
+    const result = await authService.inviteUser({
+      workspaceId: ctx.workspaceId,
+      ...body,
+    })
+
+    return reply.status(201).send(result)
+  })
+
+  // ─── GET /auth/team ─────────────────────────────────────────────
+  // Lista todos los miembros del workspace
+  app.get('/team', {
+    preHandler: [authenticate, requireRole('owner', 'admin')],
+  }, async (req, reply) => {
+    const ctx = req.user as { workspaceId: string }
+    const members = await authService.listMembers(ctx.workspaceId)
+    return reply.send(members)
+  })
+
+  // ─── PATCH /auth/team/:id/role ─────────────────────────────────
+  // Cambia el rol de un miembro (no se puede cambiar el del owner)
+  app.patch('/team/:id/role', {
+    preHandler: [authenticate, requireRole('owner', 'admin')],
+  }, async (req, reply) => {
+    const ctx = req.user as { workspaceId: string }
+    const { id } = req.params as { id: string }
+    const { role } = z.object({
+      role: z.enum(['admin', 'member', 'viewer']),
+    }).parse(req.body)
+
+    const updated = await authService.updateMemberRole(ctx.workspaceId, id, role)
+    return reply.send(updated)
+  })
+
+  // ─── DELETE /auth/team/:id ─────────────────────────────────────
+  // Solo el owner puede eliminar miembros
+  app.delete('/team/:id', {
+    preHandler: [authenticate, requireRole('owner')],
+  }, async (req, reply) => {
+    const ctx = req.user as { workspaceId: string }
+    const { id } = req.params as { id: string }
+    await authService.removeMember(ctx.workspaceId, id)
     return reply.code(204).send()
   })
 }

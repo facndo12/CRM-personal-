@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../core/database'
 import { authenticate } from '../../core/auth/auth.service'
 import { AppError } from '../../types'
+import { requireRole } from '../../core/auth/require-role'
 
 export async function pipelineRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (req) => {

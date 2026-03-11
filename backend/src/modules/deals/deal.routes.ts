@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { DealService } from './deal.service'
 import type { EventBus } from '../../core/event-bus'
 import { authenticate } from '../../core/auth/auth.service'
+import { requireRole } from '../../core/auth/require-role'
 
 const createDealSchema = z.object({
   title:             z.string().min(1).max(200),
@@ -81,7 +82,8 @@ export async function dealRoutes(
   })
 
   // ─── PATCH /deals/:id ──────────────────────────────────────────
-  app.patch<{ Params: { id: string } }>('/:id', async (req, reply) => {
+  // viewer no puede editar deals
+  app.patch<{ Params: { id: string } }>('/:id', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     const body = createDealSchema.partial().parse(req.body)
     return reply.send(
@@ -104,7 +106,8 @@ export async function dealRoutes(
   })
 
   // ─── DELETE /deals/:id ─────────────────────────────────────────
-  app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
+  // Solo owner y admin pueden borrar deals
+  app.delete<{ Params: { id: string } }>('/:id', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
     await service.delete(ctx.workspaceId, req.params.id, ctx.userId)
     return reply.status(204).send()
