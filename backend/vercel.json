@@ -11,9 +11,12 @@
   ],
   "routes": [
     {
+      "src": "/health",
+      "dest": "api/index.ts"
+    },
+    {
       "src": "/api/v1/(.*)",
       "dest": "api/index.ts"
     }
   ]
 }
-
