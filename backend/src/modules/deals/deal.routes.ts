@@ -68,7 +68,7 @@ export async function dealRoutes(
   // ─── POST /deals ───────────────────────────────────────────────
   app.post('/', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
-    const body = createDealSchema.parse(req.body)
+    const body = createDealSchema.parse(req.body) as Parameters<typeof service.create>[1]
     const deal = await service.create(ctx.workspaceId, body, ctx.userId)
     return reply.status(201).send(deal)
   })
@@ -95,7 +95,7 @@ export async function dealRoutes(
   // Drag & drop — mover una tarjeta entre columnas
   app.patch<{ Params: { id: string } }>('/:id/move', async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
-    const body = moveDealSchema.parse(req.body)
+    const body = moveDealSchema.parse(req.body) as Parameters<typeof service.move>[2]
     const deal = await service.move(
       ctx.workspaceId,
       req.params.id,

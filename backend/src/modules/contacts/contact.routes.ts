@@ -66,7 +66,7 @@ export async function contactRoutes(
   // viewer no puede crear contactos
   app.post('/', { preHandler: requireRole('owner', 'admin', 'member') }, async (req, reply) => {
     const ctx = req.user as { workspaceId: string; userId: string }
-    const body = createContactSchema.parse(req.body)
+    const body = createContactSchema.parse(req.body) as Parameters<typeof service.create>[1]
     const contact = await service.create(ctx.workspaceId, body, ctx.userId)
     return reply.status(201).send(contact)
   })

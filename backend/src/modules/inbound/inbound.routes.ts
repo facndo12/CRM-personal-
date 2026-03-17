@@ -75,7 +75,7 @@ export async function inboundRoutes(
       }
     }
 
-    const contact = await contactService.create(workspaceId, body)
+    const contact = await contactService.create(workspaceId, body as Parameters<typeof contactService.create>[1])
     return reply.status(201).send({ action: 'created', contact })
   })
 

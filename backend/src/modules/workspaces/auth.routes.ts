@@ -21,7 +21,7 @@ export async function authRoutes(app: FastifyInstance) {
       workspaceName: z.string().min(2).max(100),
     })
 
-    const body = schema.parse(req.body)
+    const body = schema.parse(req.body) as Parameters<typeof authService.register>[0]
     const { user, workspace } = await authService.register(body)
 
     // Generar JWT con los datos del usuario y workspace
@@ -126,7 +126,7 @@ export async function authRoutes(app: FastifyInstance) {
     })
 
     return reply.send(
-      keys.map(({ keyHash: _h, ...k }) => k)
+      keys.map(({ keyHash: _h, ...k }: any) => k)
     )
   })
 
@@ -162,7 +162,7 @@ export async function authRoutes(app: FastifyInstance) {
       ),
     })
 
-    const body = schema.parse(req.body)
+    const body = schema.parse(req.body) as Omit<Parameters<typeof authService.inviteUser>[0], 'workspaceId'>
     const result = await authService.inviteUser({
       workspaceId: ctx.workspaceId,
       ...body,

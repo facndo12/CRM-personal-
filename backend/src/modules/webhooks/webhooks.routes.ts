@@ -62,7 +62,7 @@ export async function webhookRoutes(app: FastifyInstance) {
     // Nunca devolver el secret al cliente
     // Si el usuario lo pierde, debe regenerarlo
     return reply.send(
-      webhooks.map(({ secret: _s, ...w }) => w)
+      webhooks.map(({ secret: _s, ...w }: any) => w)
     )
   })
 

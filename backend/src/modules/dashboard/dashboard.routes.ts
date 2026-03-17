@@ -76,23 +76,23 @@ export async function dashboardRoutes(app: FastifyInstance) {
     ])
 
     // Enriquecer dealsByStage con el nombre de la etapa
-    const stageIds = dealsByStage.map((d) => d.stageId)
+    const stageIds = dealsByStage.map((d: any) => d.stageId)
     const stages   = await db.stage.findMany({
       where:  { id: { in: stageIds } },
       select: { id: true, name: true, color: true },
     })
 
-    const stagesMap = Object.fromEntries(stages.map((s) => [s.id, s]))
+    const stagesMap = Object.fromEntries(stages.map((s: any) => [s.id, s]))
 
     // Valor total en pipeline
     const pipelineValue = dealsByStage.reduce(
-      (sum, d) => sum + Number(d._sum.value ?? 0), 0
+      (sum: any, d: any) => sum + Number(d._sum.value ?? 0), 0
     )
 
     return reply.send({
       contacts: {
         total:    totalContacts,
-        byStatus: contactsByStatus.map((s) => ({
+        byStatus: contactsByStatus.map((s: any) => ({
           status: s.status,
           count:  s._count.id,
         })),
@@ -101,7 +101,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       deals: {
         total:         totalDeals,
         pipelineValue,
-        byStage: dealsByStage.map((d) => ({
+        byStage: dealsByStage.map((d: any) => ({
           stageId:   d.stageId,
           stageName: stagesMap[d.stageId]?.name ?? 'Desconocido',
           color:     stagesMap[d.stageId]?.color ?? '#6366f1',
@@ -109,7 +109,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           value:     d._sum.value ?? 0,
         })),
       },
-      recentActivities: recentActivities.map((a) => ({
+      recentActivities: recentActivities.map((a: any) => ({
         id:          a.id,
         type:        a.type,
         title:       a.title,
