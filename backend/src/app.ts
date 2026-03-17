@@ -19,8 +19,10 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 
 export async function buildApp() {
   // ─── Servidor ──────────────────────────────────────────────────
+  const isServerless = process.env.VERCEL === '1'
+
   const app = Fastify({
-    logger: config.NODE_ENV === 'development'
+    logger: (config.NODE_ENV === 'development' && !isServerless)
       ? {
         level: 'debug',
         transport: {
@@ -28,9 +30,7 @@ export async function buildApp() {
           options: { colorize: true },
         },
       }
-      : {
-        level: 'info',
-      },
+      : { level: 'info' },
   })
 
   // ─── Event Bus ─────────────────────────────────────────────────
