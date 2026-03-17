@@ -1,18 +1,18 @@
 {
   "version": 2,
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm run build",
-  "functions": {
-    "api/index.ts": {
-      "memory": 1024,
-      "maxDuration": 30,
-      "includeFiles": "node_modules/.prisma/**"
-    }
-  },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/v1/:path*",
-      "destination": "/api/index"
+      "src": "api/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "node_modules/.prisma/**"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/v1/(.*)",
+      "dest": "api/index.ts"
     }
   ]
 }
