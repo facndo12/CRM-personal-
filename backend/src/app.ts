@@ -21,17 +21,8 @@ export async function buildApp() {
   // ─── Servidor ──────────────────────────────────────────────────
   const isServerless = process.env.VERCEL === '1'
 
-  const app = Fastify({
-    logger: (config.NODE_ENV === 'development' && !isServerless)
-      ? {
-        level: 'debug',
-        transport: {
-          target: 'pino-pretty',
-          options: { colorize: true },
-        },
-      }
-      : { level: 'info' },
-  })
+  const app = Fastify({ logger: { level: 'info' } })
+
 
   // ─── Event Bus ─────────────────────────────────────────────────
   // Una sola instancia compartida por todos los módulos
