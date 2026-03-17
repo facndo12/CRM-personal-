@@ -12,7 +12,14 @@ export async function authRoutes(app: FastifyInstance) {
 
   // ─── POST /auth/register ───────────────────────────────────────
   // Crea usuario + workspace + pipeline por defecto
-  app.post('/register', async (req, reply) => {
+  app.post('/register', {
+    config: {
+      rateLimit: {
+        max: 3,                 // 3 registros...
+        timeWindow: '60 minutes'  // ...cada hora por IP, para evitar spamming de base de datos
+      }
+    }
+  }, async (req, reply) => {
     const schema = z.object({
       email:         z.string().email(),
       password:      z.string().min(8),
@@ -49,7 +56,14 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // ─── POST /auth/login ──────────────────────────────────────────
-  app.post('/login', async (req, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 5,               // Solo 5 intentos de login...
+        timeWindow: '5 minutes' // ...cada 5 minutos por IP
+      }
+    }
+  }, async (req, reply) => {
     const schema = z.object({
       email:    z.string().email(),
       password: z.string(),

@@ -2,6 +2,8 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import fastifyJwt from '@fastify/jwt'
 import fastifyCors from '@fastify/cors'
+import fastifyRateLimit from '@fastify/rate-limit'
+
 import { config } from './core/config'
 import { EventBus } from './core/event-bus'
 import { AppError } from './types'
@@ -23,8 +25,24 @@ export async function buildApp() {
 
   const app = Fastify({ logger: { level: 'info' } })
 
+  // ─── Rate Limiting Global ────────────────────────────────────────
+  // Configurado con Redis para persistir el conteo en entornos Serverless
+  const Redis = require('ioredis')
+  const redisCache = new Redis(config.REDIS_URL)
 
-  // ─── Event Bus ─────────────────────────────────────────────────
+  await app.register(fastifyRateLimit, {
+    max: 100, // Máximo 100 peticiones globales 
+    timeWindow: '1 minute', // por minuto
+    redis: redisCache,
+    errorResponseBuilder: function (request, context) {
+      return {
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: `Has superado el límite de ${context.max} peticiones. Espera un momento y vuelve a intentar.`,
+        expiresIn: context.ttl
+      }
+    }
+  })  // ─── Event Bus ─────────────────────────────────────────────────
   // Una sola instancia compartida por todos los módulos
   const eventBus = new EventBus(config.REDIS_URL)
 
