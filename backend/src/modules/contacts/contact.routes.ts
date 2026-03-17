@@ -12,8 +12,8 @@ import { requireRole } from '../../core/auth/require-role'
 const createContactSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName:  z.string().max(100).optional(),
-  email:     z.string().email().optional(),
-  phone:     z.string().max(30).optional(),
+  email:     z.union([z.string().email(), z.literal('')]).optional().transform(e => e === '' ? undefined : e),
+  phone:     z.union([z.string().max(30), z.literal('')]).optional().transform(e => e === '' ? undefined : e),
   avatar:    z.string().url().optional(),
   status:    z.enum([
     'LEAD', 'QUALIFIED', 'ACTIVE', 'CUSTOMER', 'CHURNED', 'ARCHIVED'

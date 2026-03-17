@@ -17,7 +17,7 @@ import { activityRoutes } from './modules/activities/activity.routes'
 import { noteRoutes }     from './modules/notes/note.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 
-async function bootstrap() {
+export async function buildApp() {
   // ─── Servidor ──────────────────────────────────────────────────
   const app = Fastify({
     logger: {
@@ -117,25 +117,5 @@ async function bootstrap() {
     timestamp: new Date().toISOString(),
   }))
 
-  // ─── Iniciar ───────────────────────────────────────────────────
-  try {
-    await app.listen({ port: config.PORT, host: '0.0.0.0' })
-    app.log.info(`🚀 CRM corriendo en http://localhost:${config.PORT}`)
-    app.log.info(`📡 Webhooks y n8n listos`)
-  } catch (err) {
-    app.log.error(err)
-    process.exit(1)
-  }
-
-  // Apagado limpio — cerrar conexiones antes de salir
-  const shutdown = async () => {
-    await app.close()
-    await eventBus.close()
-    process.exit(0)
-  }
-
-  process.on('SIGINT',  shutdown)
-  process.on('SIGTERM', shutdown)
+  return app
 }
-
-bootstrap()

@@ -48,6 +48,13 @@ export default function ContactsPage() {
       setShowForm(false)
       setForm({ firstName: '', lastName: '', email: '', phone: '', source: 'MANUAL' })
     },
+    onError: (err: any) => {
+      if (err.response?.status === 409) {
+        alert('Ese email o teléfono ya está siendo usado en otro contacto.')
+      } else {
+        alert('Error al crear el contacto: ' + (err.response?.data?.message || err.message))
+      }
+    }
   })
 
   const deleteMutation = useMutation({
