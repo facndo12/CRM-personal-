@@ -7,28 +7,30 @@ import { EventBus } from './core/event-bus'
 import { AppError } from './types'
 
 // Rutas
-import { authRoutes }    from './modules/workspaces/auth.routes'
+import { authRoutes } from './modules/workspaces/auth.routes'
 import { contactRoutes } from './modules/contacts/contact.routes'
-import { dealRoutes }    from './modules/deals/deal.routes'
+import { dealRoutes } from './modules/deals/deal.routes'
 import { webhookRoutes } from './modules/webhooks/webhooks.routes'
 import { inboundRoutes } from './modules/inbound/inbound.routes'
 import { pipelineRoutes } from './modules/pipelines/pipeline.routes'
 import { activityRoutes } from './modules/activities/activity.routes'
-import { noteRoutes }     from './modules/notes/note.routes'
+import { noteRoutes } from './modules/notes/note.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 
 export async function buildApp() {
   // ─── Servidor ──────────────────────────────────────────────────
   const app = Fastify({
-    logger: {
-      level: config.NODE_ENV === 'production' ? 'info' : 'debug',
-      ...(config.NODE_ENV === 'development' && {
+    logger: config.NODE_ENV === 'development'
+      ? {
+        level: 'debug',
         transport: {
           target: 'pino-pretty',
           options: { colorize: true },
         },
-      }),
-    },
+      }
+      : {
+        level: 'info',
+      },
   })
 
   // ─── Event Bus ─────────────────────────────────────────────────
@@ -39,7 +41,7 @@ export async function buildApp() {
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
       const allowed = [
-      config.FRONTEND_URL,
+        config.FRONTEND_URL,
         'http://localhost:3001',
         'http://localhost:3000',
       ]
@@ -49,7 +51,7 @@ export async function buildApp() {
         cb(new Error('Not allowed by CORS'), false)
       }
     },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], 
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   })
 
@@ -65,7 +67,7 @@ export async function buildApp() {
     // Error de validación de Zod
     if (error.name === 'ZodError') {
       return reply.status(422).send({
-        error:  'VALIDATION_ERROR',
+        error: 'VALIDATION_ERROR',
         issues: error.issues,
       })
     }
@@ -73,7 +75,7 @@ export async function buildApp() {
     // Errores conocidos de la aplicación
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send({
-        error:   error.code ?? 'ERROR',
+        error: error.code ?? 'ERROR',
         message: error.message,
       })
     }
@@ -84,7 +86,7 @@ export async function buildApp() {
       error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
     ) {
       return reply.status(401).send({
-        error:   'UNAUTHORIZED',
+        error: 'UNAUTHORIZED',
         message: error.message,
       })
     }
@@ -92,7 +94,7 @@ export async function buildApp() {
     // Error genérico
     req.log.error(error instanceof Error ? error.message : String(error))
     return reply.status(500).send({
-      error:   'INTERNAL_ERROR',
+      error: 'INTERNAL_ERROR',
       message: 'Error interno del servidor',
     })
   })
@@ -100,20 +102,20 @@ export async function buildApp() {
   // ─── Rutas ─────────────────────────────────────────────────────
   const API = '/api/v1'
 
-  await app.register(authRoutes,    { prefix: `${API}/auth`     })
+  await app.register(authRoutes, { prefix: `${API}/auth` })
   await app.register(contactRoutes, { prefix: `${API}/contacts`, eventBus })
-  await app.register(dealRoutes,    { prefix: `${API}/deals`,    eventBus })
-  await app.register(webhookRoutes, { prefix: `${API}/webhooks`  })
-  await app.register(inboundRoutes, { prefix: `${API}/inbound`,  eventBus })
+  await app.register(dealRoutes, { prefix: `${API}/deals`, eventBus })
+  await app.register(webhookRoutes, { prefix: `${API}/webhooks` })
+  await app.register(inboundRoutes, { prefix: `${API}/inbound`, eventBus })
   await app.register(pipelineRoutes, { prefix: `${API}/pipelines` })
   await app.register(activityRoutes, { prefix: `${API}/activities` })
-  await app.register(noteRoutes,     { prefix: `${API}/notes`      })
+  await app.register(noteRoutes, { prefix: `${API}/notes` })
   await app.register(dashboardRoutes, { prefix: `${API}/dashboard` })
 
   // Health check — para verificar que el servidor está vivo
   app.get('/health', async () => ({
-    status:    'ok',
-    version:   '1.0.0',
+    status: 'ok',
+    version: '1.0.0',
     timestamp: new Date().toISOString(),
   }))
 
