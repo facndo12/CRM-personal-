@@ -23,23 +23,42 @@ export async function buildApp() {
   // ─── Servidor ──────────────────────────────────────────────────
   const isServerless = process.env.VERCEL === '1'
 
-  const app = Fastify({ logger: { level: 'info' } })
+  const app = Fastify({ 
+    logger: { level: 'info' },
+    bodyLimit: 1048576,
+  })
 
   // ─── Rate Limiting Global ────────────────────────────────────────
-  // Configurado con Redis para persistir el conteo en entornos Serverless
+  // En producción usamos Redis. En local se usa memoria para no tildar la app 
+  // si el firewall/ISP local bloquea el puerto de Upstash.
+  const isDev = process.env.NODE_ENV === 'development'
   const Redis = require('ioredis')
-  const redisCache = new Redis(config.REDIS_URL)
+  
+  const redisCache = (!isDev && config.REDIS_URL) 
+    ? new Redis(config.REDIS_URL, {
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
+      })
+    : undefined
+
+  if (redisCache) {
+    redisCache.on('error', (err: any) => app.log.warn(`Redis Error: ${err.message}`))
+  }
 
   await app.register(fastifyRateLimit, {
-    max: 100, // Máximo 100 peticiones globales 
+    global: true,
+    max: 300, // Máximo 300 peticiones globales 
     timeWindow: '1 minute', // por minuto
-    redis: redisCache,
+    keyGenerator: (req) => {
+      // Limitar por usuario autenticado o por IP
+      return (req.user as any)?.workspaceId ?? req.ip
+    },
+    ...(redisCache ? { redis: redisCache } : {}),
     errorResponseBuilder: function (request, context) {
       return {
         statusCode: 429,
         error: 'Too Many Requests',
         message: `Has superado el límite de ${context.max} peticiones. Espera un momento y vuelve a intentar.`,
-        expiresIn: context.ttl
       }
     }
   })  // ─── Event Bus ─────────────────────────────────────────────────

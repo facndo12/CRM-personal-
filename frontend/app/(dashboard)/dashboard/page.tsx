@@ -7,7 +7,7 @@ import Link from 'next/link'
 import {
   Users, KanbanSquare, DollarSign, Activity,
   Loader2, PhoneCall, Send, Calendar,
-  CheckSquare, MessageSquare, Clock, ArrowRight,
+  CheckSquare, MessageSquare, Clock, ArrowRight, Layers,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -38,15 +38,15 @@ function MetricCard({
   color:    string
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+    <div className="interactive-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-gray-400 text-sm">{title}</p>
-        <div className={clsx('w-8 h-8 rounded-lg flex items-center justify-center', color)}>
-          <Icon size={16} />
+        <p className="text-slate-500 font-bold text-sm tracking-tight">{title}</p>
+        <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center border', color)}>
+          <Icon size={18} strokeWidth={2.5}/>
         </div>
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
-      {subtitle && <p className="text-gray-500 text-xs mt-1">{subtitle}</p>}
+      <p className="text-3xl font-extrabold text-slate-900 tracking-tight">{value}</p>
+      {subtitle && <p className="text-slate-400 font-medium text-xs mt-1.5">{subtitle}</p>}
     </div>
   )
 }
@@ -60,7 +60,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
+        <Loader2 className="animate-spin text-primary-500" size={40} />
       </div>
     )
   }
@@ -68,77 +68,82 @@ export default function DashboardPage() {
   if (!data) return null
 
   return (
-    <div className="p-6 overflow-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Resumen de tu CRM</p>
+    <div className="p-6 max-w-7xl mx-auto animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard General</h1>
+        <p className="text-slate-500 font-medium mt-1">Resumen de la actividad en tu CRM y rendimiento de ventas</p>
       </div>
 
       {/* Métricas principales */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <MetricCard
           title="Contactos"
           value={data.contacts.total}
-          subtitle="activos en el CRM"
+          subtitle="Registrados en el CRM"
           icon={Users}
-          color="bg-blue-500/10 text-blue-400"
+          color="bg-blue-50 text-blue-600 border-blue-100"
         />
         <MetricCard
-          title="Deals abiertos"
+          title="Negocios abiertos"
           value={data.deals.total}
-          subtitle="en pipeline activo"
+          subtitle="En pipelines activos"
           icon={KanbanSquare}
-          color="bg-purple-500/10 text-purple-400"
+          color="bg-purple-50 text-purple-600 border-purple-100"
         />
         <MetricCard
           title="Valor en pipeline"
           value={`$${data.deals.pipelineValue.toLocaleString()}`}
-          subtitle="total estimado"
+          subtitle="Volumen total proyectado"
           icon={DollarSign}
-          color="bg-green-500/10 text-green-400"
+          color="bg-emerald-50 text-emerald-600 border-emerald-100"
         />
         <MetricCard
           title="Actividades"
           value={data.recentActivities.length}
-          subtitle="en los últimos registros"
+          subtitle="Últimas gestiones"
           icon={Activity}
-          color="bg-orange-500/10 text-orange-400"
+          color="bg-orange-50 text-orange-600 border-orange-100"
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Deals por etapa */}
-        <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Deals por etapa</h3>
+        <div className="lg:col-span-2 interactive-card p-6">
+          <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
+            <KanbanSquare size={20} className="text-primary-500" /> Rendimiento de Embudos (Deals por etapa)
+          </h3>
           {data.deals.byStage.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No hay deals todavía</p>
+            <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl">
+               <Layers size={36} className="text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
+               <p className="text-slate-500 font-medium">No hay deals todavía</p>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {data.deals.byStage.map((stage) => {
                 const maxCount = Math.max(...data.deals.byStage.map((s) => s.count))
                 const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0
                 return (
                   <div key={stage.stageId}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2.5">
                         <div
-                          className="w-2.5 h-2.5 rounded-full"
+                          className="w-3 h-3 rounded-full shadow-inner border border-black/5"
                           style={{ backgroundColor: stage.color }}
                         />
-                        <span className="text-sm text-gray-300">{stage.stageName}</span>
+                        <span className="text-sm font-bold text-slate-800">{stage.stageName}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-green-400">
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
                           ${stage.value.toLocaleString()}
                         </span>
-                        <span className="text-xs text-gray-400 w-6 text-right">
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-md text-right min-w-[32px]">
                           {stage.count}
                         </span>
                       </div>
                     </div>
-                    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-slate-100 border border-slate-200 rounded-full overflow-hidden">
                       <div
-                        className="h-full rounded-full transition-all duration-500"
+                        className="h-full rounded-full transition-all duration-1000 ease-out"
                         style={{ width: `${pct}%`, backgroundColor: stage.color }}
                       />
                     </div>
@@ -150,21 +155,26 @@ export default function DashboardPage() {
         </div>
 
         {/* Contactos por estado */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Contactos por estado</h3>
+        <div className="interactive-card p-6 flex flex-col">
+          <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
+             <Users size={20} className="text-primary-500" /> Estado de leads
+          </h3>
           {data.contacts.byStatus.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No hay contactos</p>
+            <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex-1 flex flex-col justify-center">
+                <Users size={36} className="text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
+                <p className="text-slate-500 font-medium pb-2">Sin contactos</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {data.contacts.byStatus.map((s) => (
-                <div key={s.status} className="flex items-center justify-between">
+                <div key={s.status} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50">
                   <span className={clsx(
-                    'text-xs px-2 py-1 rounded-full font-medium',
-                    STATUS_COLORS[s.status] ?? 'bg-gray-500/10 text-gray-400'
+                    'text-xs px-2.5 py-1 rounded-md font-bold uppercase tracking-wider',
+                    STATUS_COLORS[s.status] ?? 'bg-slate-100 text-slate-600 border border-slate-200'
                   )}>
                     {s.status}
                   </span>
-                  <span className="text-sm text-white font-medium">{s.count}</span>
+                  <span className="text-base text-slate-900 font-extrabold">{s.count}</span>
                 </div>
               ))}
             </div>
@@ -172,28 +182,33 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Actividad reciente */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Actividad reciente</h3>
+        <div className="interactive-card p-6">
+          <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
+             <Activity size={20} className="text-primary-500" /> Registro de actividades
+          </h3>
           {data.recentActivities.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No hay actividades</p>
+             <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl">
+                 <Clock size={36} className="text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
+                 <p className="text-slate-500 font-medium">Sin movimientos recientes</p>
+             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {data.recentActivities.map((activity) => {
                 const Icon = ACTIVITY_ICONS[activity.type] ?? Clock
                 return (
-                  <div key={activity.id} className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center shrink-0 mt-0.5">
-                      <Icon size={12} className="text-gray-400" />
+                  <div key={activity.id} className="flex items-start gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                      <Icon size={16} className="text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm truncate">{activity.title}</p>
+                      <p className="text-slate-900 font-bold text-sm tracking-tight truncate">{activity.title}</p>
                       {activity.contactName && (
-                        <p className="text-gray-500 text-xs">{activity.contactName}</p>
+                        <p className="text-slate-500 font-medium text-xs mt-0.5">{activity.contactName}</p>
                       )}
                     </div>
-                    <p className="text-gray-600 text-xs shrink-0">
+                    <p className="text-slate-400 font-medium text-xs shrink-0 whitespace-nowrap bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                       {new Date(activity.createdAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -204,42 +219,52 @@ export default function DashboardPage() {
         </div>
 
         {/* Contactos recientes */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-medium">Contactos recientes</h3>
+        <div className="interactive-card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-slate-900 font-bold flex items-center gap-2 text-lg">
+              <Users size={20} className="text-primary-500" /> Contactos recientes
+            </h3>
             <Link
               href="/contacts"
-              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              className="text-xs font-bold text-primary-600 hover:text-primary-700 hover:bg-primary-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-transparent hover:border-primary-100 transition-colors"
             >
-              Ver todos <ArrowRight size={12} />
+              Ver agenda completa <ArrowRight size={14} />
             </Link>
           </div>
           {data.contacts.recent.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No hay contactos</p>
+            <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl">
+                <Users size={36} className="text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
+                <p className="text-slate-500 font-medium">Todavía no has agregado contactos</p>
+            </div>
           ) : (
-            <div className="space-y-3">
+             <div className="space-y-3">
               {data.contacts.recent.map((contact) => (
                 <Link
                   key={contact.id}
                   href={`/contacts/${contact.id}`}
-                  className="flex items-center gap-3 hover:bg-gray-800 rounded-lg p-1.5 -mx-1.5 transition-colors"
+                  className="flex items-center gap-4 hover:bg-slate-50 rounded-xl p-3 transition-colors border border-slate-100 bg-white"
                 >
-                  <div className="w-7 h-7 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-xs font-medium shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-100 to-slate-200 border border-slate-300/50 flex items-center justify-center text-slate-600 font-bold text-sm shrink-0 shadow-sm">
                     {contact.firstName[0]}{contact.lastName?.[0] ?? ''}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">
+                    <p className="text-slate-900 font-bold text-sm truncate tracking-tight">
                       {contact.firstName} {contact.lastName}
                     </p>
-                    <p className="text-gray-500 text-xs">{contact.status}</p>
+                    <p className="text-slate-500 font-medium text-xs mt-0.5 flex items-center gap-1.5">
+                       <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> {contact.status}
+                    </p>
                   </div>
-                  <span className={clsx(
-                    'text-xs font-medium',
-                    contact.score >= 70 ? 'text-green-400' :
-                    contact.score >= 40 ? 'text-yellow-400' : 'text-gray-500'
-                  )}>
-                    {contact.score}
-                  </span>
+                  <div className="text-right flex flex-col items-end">
+                      <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 mb-1">Score</span>
+                      <span className={clsx(
+                        'text-xs font-extrabold px-2 py-0.5 rounded-md border',
+                        contact.score >= 70 ? 'bg-green-50 text-green-600 border-green-200' :
+                        contact.score >= 40 ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                      )}>
+                        {contact.score}
+                      </span>
+                  </div>
                 </Link>
               ))}
             </div>

@@ -4,45 +4,37 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { contactsApi } from '@/lib/api'
 import type { Contact, PaginatedResult } from '@/types'
-import { Search, Plus, Mail, Phone, Tag, Loader2 } from 'lucide-react'
+import { Search, Plus, Mail, Phone, Tag, Loader2, Users } from 'lucide-react'
 import clsx from 'clsx'
 import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
-  LEAD:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  QUALIFIED: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  ACTIVE:    'bg-green-500/10 text-green-400 border-green-500/20',
-  CUSTOMER:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  CHURNED:   'bg-red-500/10 text-red-400 border-red-500/20',
+  LEAD: 'border-sky-400 bg-sky-200 text-sky-950 dark:border-slate-400/60 dark:bg-slate-500/25 dark:text-slate-100',
+  QUALIFIED: 'border-violet-400 bg-violet-200 text-violet-950 dark:border-slate-400/60 dark:bg-slate-500/25 dark:text-slate-100',
+  ACTIVE: 'border-emerald-400 bg-emerald-200 text-emerald-950 dark:border-emerald-300/30 dark:bg-emerald-400/15 dark:text-emerald-100',
+  CUSTOMER: 'border-green-400 bg-green-200 text-green-950 dark:border-emerald-300/30 dark:bg-emerald-400/15 dark:text-emerald-100',
+  CHURNED: 'border-rose-400 bg-rose-200 text-rose-950 dark:border-rose-300/30 dark:bg-rose-400/15 dark:text-rose-100',
 }
 
 export default function ContactsPage() {
   const queryClient = useQueryClient()
-  const [search, setSearch]       = useState('')
-  const [showForm, setShowForm]   = useState(false)
-  const [form, setForm]           = useState({
+  const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({
     firstName: '',
-    lastName:  '',
-    email:     '',
-    phone:     '',
-    source:    'MANUAL',
+    lastName: '',
+    email: '',
+    phone: '',
+    source: 'MANUAL',
   })
 
-  // Traer contactos con React Query
-  // Se re-ejecuta automáticamente cuando cambia el search
   const { data, isLoading } = useQuery<PaginatedResult<Contact>>({
     queryKey: ['contacts', search],
-    queryFn:  () =>
-      contactsApi.list({ search: search || undefined, limit: 50 })
-        .then((r) => r.data),
+    queryFn: () => contactsApi.list({ search: search || undefined, limit: 50 }).then((r) => r.data),
   })
 
-  // Mutación para crear contacto
   const createMutation = useMutation({
-    mutationFn: (data: typeof form) => {
-      console.log('creando contacto con:', JSON.stringify(data))
-      return contactsApi.create(data)
-    },
+    mutationFn: (data: typeof form) => contactsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       setShowForm(false)
@@ -50,11 +42,11 @@ export default function ContactsPage() {
     },
     onError: (err: any) => {
       if (err.response?.status === 409) {
-        alert('Ese email o teléfono ya está siendo usado en otro contacto.')
+        alert('Ese email o telefono ya esta siendo usado en otro contacto.')
       } else {
         alert('Error al crear el contacto: ' + (err.response?.data?.message || err.message))
       }
-    }
+    },
   })
 
   const deleteMutation = useMutation({
@@ -65,132 +57,139 @@ export default function ContactsPage() {
   })
 
   return (
-    <div className="p-6">
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-7xl animate-fade-in p-6">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Contactos</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            {data?.total ?? 0} contactos en total
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Directorio de Contactos</h1>
+          <p className="mt-1 font-medium text-slate-600">
+            Gestiona y administra {data?.total ?? 0} contactos en tu cartera.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus size={16} />
-          Nuevo contacto
+        <button onClick={() => setShowForm(true)} className="btn-primary">
+          <Plus size={18} strokeWidth={2.5} />
+          Anadir Contacto
         </button>
       </div>
 
-      {/* Buscador */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+      <div className="relative mb-8 max-w-xl">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-sky-700/70 dark:text-slate-400" size={18} strokeWidth={2.5} />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, email o teléfono..."
-          className="w-full bg-gray-900 border border-gray-800 text-white rounded-lg pl-9 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 text-sm"
+          placeholder="Buscar por nombre, correo electronico o telefono..."
+          className="w-full rounded-xl border border-sky-200 bg-[#eef8ff] py-3 pl-11 pr-4 text-sm font-semibold text-slate-800 shadow-sm transition-all placeholder:text-sky-700/55 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/25 dark:border-slate-600/80 dark:bg-slate-800/95 dark:text-slate-100 dark:placeholder:text-slate-400"
         />
       </div>
 
-      {/* Formulario nuevo contacto */}
       {showForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
-          <h3 className="text-white font-medium mb-4">Nuevo contacto</h3>
-          <div className="grid grid-cols-2 gap-4">
+        <div className="interactive-card mb-8 animate-slide-up border-l-4 border-l-primary-500 p-6">
+          <h3 className="mb-5 flex items-center gap-2 text-lg font-bold text-slate-900">
+            <Plus size={20} className="text-primary-500" strokeWidth={3} /> Cargar Nuevo Perfil
+          </h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[
-              { name: 'firstName', placeholder: 'Nombre *', required: true },
-              { name: 'lastName',  placeholder: 'Apellido'                 },
-              { name: 'email',     placeholder: 'Email'                    },
-              { name: 'phone',     placeholder: 'Teléfono'                 },
+              { name: 'firstName', placeholder: 'Nombre *' },
+              { name: 'lastName', placeholder: 'Apellido' },
+              { name: 'email', placeholder: 'Correo electronico' },
+              { name: 'phone', placeholder: 'Numero de telefono' },
             ].map((field) => (
               <input
                 key={field.name}
                 placeholder={field.placeholder}
                 value={form[field.name as keyof typeof form]}
-                onChange={(e) =>
-                  setForm({ ...form, [field.name]: e.target.value })
-                }
-                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 text-sm"
+                onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
+                className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 dark:border-slate-600/80 dark:bg-slate-800/90 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             ))}
           </div>
 
-          <div className="flex gap-3 mt-4">
+          <div className="mt-6 flex gap-3 border-t border-slate-200 pt-5 dark:border-slate-600/70">
             <button
               onClick={() => createMutation.mutate(form)}
               disabled={!form.firstName || createMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="btn-primary w-full px-6 py-2.5 sm:w-auto"
             >
-              {createMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-              Guardar
+              {createMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              Guardar Perfil
             </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm transition-colors"
-            >
+            <button onClick={() => setShowForm(false)} className="btn-secondary w-full px-6 py-2.5 sm:w-auto">
               Cancelar
             </button>
           </div>
         </div>
       )}
 
-      {/* Lista de contactos */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-indigo-500" size={32} />
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : data?.items.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
-          <Users size={48} className="mx-auto mb-3 opacity-30" />
-          <p>No hay contactos todavía</p>
-          <p className="text-sm mt-1">Creá tu primer contacto con el botón de arriba</p>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-24 text-center dark:border-slate-600/70 dark:bg-slate-800/60">
+          <Users size={56} className="mx-auto mb-4 text-slate-400 dark:text-slate-500" strokeWidth={1.5} />
+          <p className="text-lg font-medium text-slate-600 dark:text-slate-300">Aun no hay contactos registrados</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Comenza cargando tu primer contacto usando el boton superior.
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {data?.items.map((contact) => (
+        <div className="space-y-3">
+          {(data?.items ?? []).map((contact) => (
             <Link
               key={contact.id}
               href={`/contacts/${contact.id}`}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors"
+              className="interactive-card group flex flex-col gap-4 p-4 transition-colors hover:border-primary-300 dark:hover:border-slate-500/90 sm:flex-row sm:items-center"
             >
-              {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-medium text-sm shrink-0">
-                {contact.firstName[0]}{contact.lastName?.[0] ?? ''}
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-300 bg-sky-200 text-sm font-black text-sky-950 shadow-sm dark:border-slate-500/80 dark:bg-slate-600 dark:text-slate-50">
+                <span className="relative z-10">
+                  {contact.firstName[0]}
+                  {contact.lastName?.[0] ?? ''}
+                </span>
               </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-medium text-sm">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <span className="truncate text-base font-bold tracking-tight text-slate-900 transition-colors group-hover:text-primary-700 dark:group-hover:text-slate-50">
                     {contact.firstName} {contact.lastName}
                   </span>
-                  <span className={clsx(
-                    'text-xs px-2 py-0.5 rounded-full border',
-                    STATUS_COLORS[contact.status] ?? 'bg-gray-500/10 text-gray-400'
-                  )}>
+                  <span
+                    className={clsx(
+                      'rounded-md border px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest shadow-sm',
+                      STATUS_COLORS[contact.status] ?? 'border-slate-400 bg-slate-200 text-slate-900 dark:border-slate-500/60 dark:bg-slate-500/25 dark:text-slate-100'
+                    )}
+                  >
                     {contact.status}
                   </span>
                 </div>
-                <div className="flex items-center gap-4 mt-1">
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
                   {contact.email && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Mail size={11} /> {contact.email}
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      <Mail
+                        size={14}
+                        className="text-slate-500 transition-colors group-hover:text-primary-500 dark:text-slate-400 dark:group-hover:text-slate-200"
+                      />
+                      {contact.email}
                     </span>
                   )}
                   {contact.phone && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Phone size={11} /> {contact.phone}
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      <Phone
+                        size={14}
+                        className="text-slate-500 transition-colors group-hover:text-primary-500 dark:text-slate-400 dark:group-hover:text-slate-200"
+                      />
+                      {contact.phone}
                     </span>
                   )}
                 </div>
+
                 {contact.tags.length > 0 && (
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Tag size={10} className="text-gray-500" />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Tag size={12} className="text-slate-500 dark:text-slate-400" />
                     {contact.tags.map((tag) => (
-                      <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">
+                      <span
+                        key={tag}
+                        className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-500/60 dark:bg-slate-600/60 dark:text-slate-100"
+                      >
                         {tag}
                       </span>
                     ))}
@@ -198,37 +197,35 @@ export default function ContactsPage() {
                 )}
               </div>
 
-              {/* Score */}
-              <div className="text-center shrink-0">
-                <div className={clsx(
-                  'text-lg font-bold',
-                  contact.score >= 70 ? 'text-green-400' :
-                  contact.score >= 40 ? 'text-yellow-400' : 'text-gray-400'
-                )}>
+              <div className="flex min-w-[88px] shrink-0 flex-col items-center justify-center border-l border-slate-200 px-4 text-center dark:border-slate-600/70">
+                <div
+                  className={clsx(
+                    'mb-0.5 text-2xl font-black',
+                    contact.score >= 70 ? 'text-emerald-600 dark:text-emerald-300' :
+                    contact.score >= 40 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300'
+                  )}
+                >
                   {contact.score}
                 </div>
-                <div className="text-xs text-gray-500">score</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Score</div>
               </div>
 
-              {/* Acciones */}
               <button
-                onClick={() => deleteMutation.mutate(contact.id)}
-                className="text-gray-600 hover:text-red-400 transition-colors text-xs"
+                onClick={(e) => {
+                  e.preventDefault()
+                  if (confirm(`Eliminar contacto ${contact.firstName}?`)) {
+                    deleteMutation.mutate(contact.id)
+                  }
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                title="Eliminar contacto"
               >
-                ✕
+                x
               </button>
             </Link>
           ))}
         </div>
       )}
     </div>
-  )
-}
-
-function Users({ size, className }: { size: number; className?: string }) {
-  return (
-    <svg width={size} height={size} className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
   )
 }

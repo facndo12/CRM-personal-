@@ -3,6 +3,7 @@ node_modules/
 
 # Build
 dist/
+backups/
 
 # Variables de entorno
 .env

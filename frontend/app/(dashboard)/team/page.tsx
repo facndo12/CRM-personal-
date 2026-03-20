@@ -16,10 +16,10 @@ const ROLE_LABELS: Record<Role, string> = {
 }
 
 const ROLE_COLORS: Record<Role, string> = {
-  owner:  'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  admin:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  member: 'bg-blue-500/10   text-blue-400   border-blue-500/20',
-  viewer: 'bg-gray-500/10   text-gray-400   border-gray-500/20',
+  owner:  'bg-amber-50 text-amber-600 border-amber-200',
+  admin:  'bg-primary-50 text-primary-600 border-primary-200',
+  member: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  viewer: 'bg-slate-50 text-slate-600 border-slate-200',
 }
 
 type Member = {
@@ -75,37 +75,37 @@ export default function TeamPage() {
   const isOwner = currentUser?.role === 'owner'
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Equipo</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            {members.length} miembro{members.length !== 1 ? 's' : ''} en el workspace
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Cuentas y Equipo</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            {members.length} miembro{members.length !== 1 ? 's' : ''} en tu entorno de trabajo
           </p>
         </div>
         <button
           onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="btn-primary"
         >
-          <UserPlus size={16} />
-          Invitar miembro
+          <UserPlus size={18} strokeWidth={2.5} />
+          Invitar usuario
         </button>
       </div>
 
       {/* Formulario de invitación */}
       {showInvite && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
-          <h3 className="text-white font-medium mb-4 flex items-center gap-2">
-            <UserPlus size={16} className="text-indigo-400" />
-            Invitar nuevo miembro
+        <div className="interactive-card p-6 mb-8 animate-slide-up">
+          <h3 className="text-slate-900 font-bold mb-5 text-lg flex items-center gap-2">
+            <UserPlus size={20} className="text-primary-600" />
+            Otorgar acceso a nuevo miembro
           </h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { key: 'firstName', placeholder: 'Nombre *' },
               { key: 'lastName',  placeholder: 'Apellido'  },
-              { key: 'email',     placeholder: 'Email *'   },
+              { key: 'email',     placeholder: 'Email corporativo *'   },
               { key: 'password',  placeholder: 'Contraseña temporal * (mín. 8 caracteres)' },
             ].map(({ key, placeholder }) => (
               <input
@@ -114,45 +114,46 @@ export default function TeamPage() {
                 placeholder={placeholder}
                 value={form[key as keyof typeof form]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
               />
             ))}
           </div>
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-3 pt-5 border-t border-slate-100">
             <div className="relative">
               <select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value as typeof form.role })}
-                className="appearance-none bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="appearance-none bg-slate-50 border border-slate-200 text-slate-900 font-semibold rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 border-primary-500 cursor-pointer"
               >
-                {isOwner && <option value="admin">Admin</option>}
-                <option value="member">Member</option>
-                <option value="viewer">Viewer</option>
+                {isOwner && <option value="admin">Permisos Admin</option>}
+                <option value="member">Permisos Member</option>
+                <option value="viewer">Permisos Viewer</option>
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" strokeWidth={2.5}/>
             </div>
 
             <button
               onClick={() => inviteMutation.mutate()}
               disabled={!form.firstName || !form.email || !form.password || inviteMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+              className="btn-primary py-2.5"
             >
-              {inviteMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-              Invitar
+              {inviteMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              Enviar invitación
             </button>
             <button
               onClick={() => setShowInvite(false)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm"
+              className="btn-secondary py-2.5"
             >
               Cancelar
             </button>
           </div>
 
           {inviteMutation.isError && (
-            <p className="text-red-400 text-sm mt-3">
-              Error al invitar. Verificá que el email sea válido y la contraseña tenga al menos 8 caracteres.
-            </p>
+            <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 mt-4 text-sm font-medium animate-slide-up flex items-start gap-2">
+                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Error al invitar. Verificá que el email sea válido y la contraseña tenga al menos 8 caracteres.
+            </div>
           )}
         </div>
       )}
@@ -160,10 +161,10 @@ export default function TeamPage() {
       {/* Lista de miembros */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-indigo-500" size={32} />
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {members.map((member) => {
             const isMe    = member.user.id === currentUser?.userId
             const isOwnerMember = member.role === 'owner'
@@ -171,28 +172,30 @@ export default function TeamPage() {
             return (
               <div
                 key={member.id}
-                className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4"
+                className="interactive-card p-4 flex items-center justify-between gap-4"
               >
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-medium text-sm shrink-0">
-                  {member.user.firstName[0]}{member.user.lastName?.[0] ?? ''}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-medium text-sm">
-                      {member.user.firstName} {member.user.lastName}
-                    </span>
-                    {isMe && (
-                      <span className="text-xs text-gray-500">(vos)</span>
-                    )}
+                <div className="flex items-center gap-4 flex-1">
+                  {/* Avatar Elegante */}
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-slate-100 to-slate-200 border border-slate-300/50 flex items-center justify-center text-slate-600 font-bold text-sm shrink-0 shadow-sm">
+                    {member.user.firstName[0]}{member.user.lastName?.[0] ?? ''}
                   </div>
-                  <p className="text-gray-400 text-xs mt-0.5">{member.user.email}</p>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-900 font-bold text-base tracking-tight">
+                        {member.user.firstName} {member.user.lastName}
+                      </span>
+                      {isMe && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200">vos</span>
+                      )}
+                    </div>
+                    <p className="text-slate-500 text-sm font-medium">{member.user.email}</p>
+                  </div>
                 </div>
 
                 {/* Rol — editable si no es owner y el usuario actual es owner */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   {isOwner && !isOwnerMember && !isMe ? (
                     <div className="relative">
                       <select
@@ -203,36 +206,39 @@ export default function TeamPage() {
                             role: e.target.value as 'admin' | 'member' | 'viewer',
                           })
                         }
-                        className="appearance-none bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 pr-7 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="appearance-none bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-lg pl-3 pr-8 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer hover:bg-slate-100 transition-colors"
                       >
                         <option value="admin">Admin</option>
                         <option value="member">Member</option>
                         <option value="viewer">Viewer</option>
                       </select>
-                      <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" strokeWidth={2.5} />
                     </div>
                   ) : (
                     <span className={clsx(
-                      'text-xs px-2 py-1 rounded-full border flex items-center gap-1',
-                      ROLE_COLORS[member.role]
+                      member.role === 'owner' ? 'badge-owner' : 
+                      member.role === 'admin' ? 'badge-admin' :
+                      member.role === 'member' ? 'badge-member' : 'badge-viewer'
                     )}>
-                      {isOwnerMember && <Shield size={10} />}
                       {ROLE_LABELS[member.role]}
                     </span>
                   )}
 
                   {/* Botón de eliminar — solo owner, no a sí mismo ni a otros owners */}
-                  {isOwner && !isOwnerMember && !isMe && (
+                  {isOwner && !isOwnerMember && !isMe ? (
                     <button
                       onClick={() => {
                         if (confirm(`¿Eliminar a ${member.user.firstName} del workspace?`)) {
                           removeMutation.mutate(member.id)
                         }
                       }}
-                      className="text-gray-600 hover:text-red-400 transition-colors"
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                      title="Eliminar usuario"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={16} />
                     </button>
+                  ) : (
+                    <div className="w-8"></div>
                   )}
                 </div>
               </div>
@@ -241,21 +247,27 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* Leyenda de roles */}
-      <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <p className="text-gray-400 text-xs font-medium mb-3 uppercase tracking-wider">Permisos por rol</p>
-        <div className="grid grid-cols-2 gap-3 text-xs text-gray-400">
-          <div>
-            <span className="text-yellow-400 font-medium">Owner</span> — Control total. Puede invitar y eliminar miembros.
+      {/* Leyenda de roles mejorada y espaciada */}
+      <div className="mt-12 bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <p className="text-slate-500 text-xs font-bold mb-4 uppercase tracking-widest flex items-center gap-2">
+          <Shield size={14}/> Matriz de Permisos
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4 text-sm text-slate-600">
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <span className="badge-owner mb-2 inline-block">Owner</span>
+            <p className="leading-relaxed">Control total. Puede borrar el equipo, invitar, revocar accesos y cambiar la configuración del negocio.</p>
           </div>
-          <div>
-            <span className="text-purple-400 font-medium">Admin</span> — Gestó contactos, deals, webhooks y pipelines. Puede invitar members y viewers.
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <span className="badge-admin mb-2 inline-block">Admin</span>
+            <p className="leading-relaxed">Gestiona contactos, deals, webhooks y pipelines. Puede invitar nuevos Members y Viewers a la plataforma.</p>
           </div>
-          <div>
-            <span className="text-blue-400 font-medium">Member</span> — Puede crear y editar contactos y deals. No puede borrar ni configurar webhooks.
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <span className="badge-member mb-2 inline-block">Member</span>
+            <p className="leading-relaxed">Operario diario. Crea, edita y mueve Deals y Contactos diariamente. No maneja configuraciones maestras.</p>
           </div>
-          <div>
-            <span className="text-gray-300 font-medium">Viewer</span> — Solo lectura. No puede crear ni modificar nada.
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <span className="badge-viewer mb-2 inline-block">Viewer</span>
+            <p className="leading-relaxed">Solo lectura. Puede revisar auditorías, contactos y deals pero no tiene capacidad de modificar ni interactuar.</p>
           </div>
         </div>
       </div>

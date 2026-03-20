@@ -278,7 +278,7 @@ export class DealService {
 
       // Mover el deal a la nueva posición
       await tx.deal.update({
-        where: { id: dealId },
+        where: { id: dealId, workspaceId },
         data: {
           stageId: newStageId,
           position: targetPosition,
@@ -303,7 +303,7 @@ export class DealService {
         })
         await Promise.all(
           remainingInOrigin.map((d, i) =>
-            tx.deal.update({ where: { id: d.id }, data: { position: i } })
+            tx.deal.update({ where: { id: d.id, workspaceId}, data: { position: i } })
           )
         )
       }
@@ -392,7 +392,7 @@ export class DealService {
     await db.deal.findFirstOrThrow({ where: { id, workspaceId } })
 
     const deal = await db.deal.update({
-      where: { id },
+      where: { id, workspaceId },
       data: {
         ...(data.title !== undefined && { title: data.title }),
         ...(data.value !== undefined && { value: data.value }),
@@ -424,7 +424,7 @@ export class DealService {
 
     // Soft delete — igual que contacts, preserva el historial
     await db.deal.update({
-      where: { id },
+      where: { id, workspaceId },
       data: { isArchived: true },
     })
 

@@ -23,8 +23,8 @@ export default function DealsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="animate-spin text-primary-500" size={40} />
       </div>
     )
   }
@@ -32,37 +32,39 @@ export default function DealsPage() {
   // Mientras redirige, mostrar loading
   if (pipelines?.length === 1) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="animate-spin text-primary-500" size={40} />
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Deals</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Seleccioná un pipeline</p>
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Embudos de Ventas</h1>
+        <p className="text-slate-500 font-medium mt-1">Seleccioná un pipeline para administrar tus negocios</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 max-w-lg">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
         {pipelines?.map((pipeline: any) => (
           <button
             key={pipeline.id}
             onClick={() => router.push(`/deals/${pipeline.id}`)}
-            className="bg-gray-900 border border-gray-800 hover:border-indigo-500 rounded-xl p-4 text-left transition-colors group"
+            className="interactive-card p-5 text-left group flex items-center justify-between"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <KanbanSquare size={20} className="text-indigo-400" />
-                <div>
-                  <p className="text-white font-medium">{pipeline.name}</p>
-                  <p className="text-gray-400 text-xs mt-0.5">
-                    {pipeline.stages.length} etapas
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center text-primary-600 shadow-sm relative overflow-hidden">
+                <KanbanSquare size={20} className="text-primary-600 relative z-10" strokeWidth={2.5} />
               </div>
-              <ArrowRight size={16} className="text-gray-600 group-hover:text-indigo-400 transition-colors" />
+              <div>
+                <p className="text-slate-900 font-bold text-lg tracking-tight group-hover:text-primary-600 transition-colors">{pipeline.name}</p>
+                <p className="text-slate-500 font-medium text-sm mt-0.5">
+                  {pipeline.stages.length} etapas
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600 group-hover:border-primary-100 flex items-center justify-center transition-all bg-white">
+               <ArrowRight size={16} strokeWidth={2.5} />
             </div>
           </button>
         ))}

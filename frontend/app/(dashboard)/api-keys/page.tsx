@@ -43,81 +43,85 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">API Keys</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            Tokens para integraciones externas como n8n o scripts
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">API Keys</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Gestioná tokens de acceso para integraciones externas
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="btn-primary"
         >
-          <Plus size={16} />
-          Nueva API Key
+          <Plus size={18} strokeWidth={2.5} />
+          Crear API Key
         </button>
       </div>
 
       {/* Alerta — nueva key recién creada */}
-      {/* Solo se muestra UNA VEZ porque el backend no guarda la key en texto plano */}
       {newKey && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
-          <p className="text-yellow-400 text-sm font-medium mb-2">
-            ⚠️ Copiá esta key ahora — no la vas a poder ver de nuevo
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8 shadow-sm animate-slide-up">
+          <p className="text-amber-800 text-sm font-bold mb-3 flex items-center gap-2">
+            <span className="bg-amber-100 p-1 rounded">⚠️</span> Importante: Copiá esta key ahora. Por seguridad, no se volverá a mostrar.
           </p>
-          <div className="flex items-center gap-2 bg-gray-900 rounded-lg px-3 py-2">
-            <code className="text-green-400 text-xs flex-1 break-all">
+          <div className="flex items-center gap-3 bg-white border border-amber-200/60 rounded-xl p-2 pl-4">
+            <code className="text-emerald-600 font-bold text-sm flex-1 break-all font-mono tracking-tight">
               {newKey}
             </code>
             <button
               onClick={() => copyToClipboard(newKey, 'new')}
-              className="text-gray-400 hover:text-white transition-colors shrink-0"
+              className="text-slate-400 hover:text-primary-600 bg-slate-50 hover:bg-primary-50 px-3 py-2 rounded-lg transition-colors shrink-0 border border-slate-200 hover:border-primary-200 flex items-center gap-2 font-bold text-xs"
             >
-              {copiedId === 'new'
-                ? <Check size={14} className="text-green-400" />
-                : <Copy size={14} />
-              }
+              {copiedId === 'new' ? (
+                <><Check size={16} className="text-emerald-500" /> Copiada</>
+              ) : (
+                <><Copy size={16} /> Copiar</>
+              )}
             </button>
           </div>
           <button
             onClick={() => setNewKey(null)}
-            className="text-xs text-gray-500 hover:text-gray-300 mt-2 transition-colors"
+            className="text-xs font-bold text-amber-700/60 hover:text-amber-700 mt-4 transition-colors"
           >
-            Ya la copié, cerrar
+            Cerrar este mensaje
           </button>
         </div>
       )}
 
       {/* Formulario */}
       {showForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
-          <h3 className="text-white font-medium mb-4">Nueva API Key</h3>
-          <div className="flex gap-3">
+        <div className="interactive-card p-6 mb-8 animate-slide-up">
+          <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
+             <Key size={20} className="text-primary-500"/> Registrar nueva credencial
+          </h3>
+          <div className="flex flex-col sm:flex-row gap-4">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Nombre descriptivo (ej: n8n producción) *"
-              className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+              placeholder="Nombre identificador (ej: n8n producción) *"
+              className="flex-1 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
               autoFocus
             />
-            <button
-              onClick={() => createMutation.mutate()}
-              disabled={!name || createMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-            >
-              {createMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-              Crear
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm"
-            >
-              Cancelar
-            </button>
+            <div className="flex gap-3">
+                <button
+                onClick={() => createMutation.mutate()}
+                disabled={!name || createMutation.isPending}
+                className="btn-primary py-3"
+                >
+                {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} strokeWidth={2.5} />}
+                Generar Token
+                </button>
+                <button
+                onClick={() => setShowForm(false)}
+                className="btn-secondary py-3"
+                >
+                Cancelar
+                </button>
+            </div>
           </div>
         </div>
       )}
@@ -125,34 +129,33 @@ export default function ApiKeysPage() {
       {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-indigo-500" size={32} />
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : apiKeys?.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
-          <Key size={48} className="mx-auto mb-3 opacity-30" />
-          <p>No hay API Keys todavía</p>
-          <p className="text-sm mt-1">
-            Creá una para conectar n8n u otros servicios
+        <div className="text-center py-24 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl">
+          <Key size={56} className="text-slate-300 mx-auto mb-4" strokeWidth={1.5} />
+          <p className="text-slate-500 font-medium text-lg">No hay API Keys generadas</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Creá una credencial para automatizar el CRM con otros servicios.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {apiKeys?.map((apiKey) => (
             <div
               key={apiKey.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4"
+              className="interactive-card p-5 flex items-center gap-5"
             >
               {/* Ícono */}
-              <div className="w-9 h-9 bg-indigo-600/20 border border-indigo-500/30 rounded-lg flex items-center justify-center shrink-0">
-                <Key size={16} className="text-indigo-400" />
+              <div className="w-12 h-12 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                <Key size={20} className="text-primary-500" strokeWidth={2.5}/>
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium">{apiKey.name}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {/* Prefix visible — el resto está hasheado */}
-                  <code className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded">
+                <p className="text-slate-900 text-base font-extrabold tracking-tight">{apiKey.name}</p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <code className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1 rounded-md tracking-wider">
                     {visibleId === apiKey.id
                       ? apiKey.keyPrefix + '••••••••••••••••'
                       : apiKey.keyPrefix + '••••'
@@ -162,29 +165,38 @@ export default function ApiKeysPage() {
                     onClick={() =>
                       setVisibleId(visibleId === apiKey.id ? null : apiKey.id)
                     }
-                    className="text-gray-600 hover:text-gray-400 transition-colors"
+                    className="p-1 px-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-md transition-colors flex items-center justify-center"
+                    title={visibleId === apiKey.id ? 'Ocultar resto del token' : 'Revelar logitud del token'}
                   >
                     {visibleId === apiKey.id
-                      ? <EyeOff size={12} />
-                      : <Eye size={12} />
+                      ? <EyeOff size={14} />
+                      : <Eye size={14} />
                     }
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Creada: {new Date(apiKey.createdAt).toLocaleDateString()}
-                  {apiKey.lastUsedAt && (
-                    <> · Último uso: {new Date(apiKey.lastUsedAt).toLocaleDateString()}</>
-                  )}
-                </p>
+                <div className="flex items-center gap-4 mt-2">
+                    <p className="text-xs font-medium text-slate-400">
+                    Generada el {new Date(apiKey.createdAt).toLocaleDateString()}
+                    </p>
+                    {apiKey.lastUsedAt && (
+                        <p className="text-xs font-medium text-primary-600 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-100">
+                        Último uso: {new Date(apiKey.lastUsedAt).toLocaleDateString()}
+                        </p>
+                    )}
+                </div>
               </div>
 
               {/* Eliminar */}
               <button
-                onClick={() => deleteMutation.mutate(apiKey.id)}
-                className="text-gray-600 hover:text-red-400 transition-colors p-1.5"
-                title="Revocar key"
+                onClick={() => {
+                   if (confirm(`¿Estás seguro que querés revocar la API Key "${apiKey.name}"? Cualquier integración que la use dejará de funcionar.`)) {
+                       deleteMutation.mutate(apiKey.id)
+                   }
+                }}
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                title="Revocar key permanentemente"
               >
-                <Trash2 size={14} />
+                <Trash2 size={18} />
               </button>
             </div>
           ))}
@@ -192,17 +204,18 @@ export default function ApiKeysPage() {
       )}
 
       {/* Explicación de uso */}
-      <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="text-white text-sm font-medium mb-3">Cómo usar una API Key</h3>
-        <p className="text-gray-400 text-xs mb-3">
-          Incluí el header en cada request a la API:
+      <div className="mt-12 bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <h3 className="text-slate-900 text-sm font-bold mb-4 uppercase tracking-widest flex items-center gap-2">
+            <Key size={16} className="text-primary-500" strokeWidth={2.5}/> Cómo autenticar consultas API
+        </h3>
+        <p className="text-slate-600 text-sm font-medium mb-3">
+          Deberás incluir un encabezado HTTP personalizado en cada petición que hagas a los servidores del CRM:
         </p>
-        <code className="block bg-gray-800 text-green-400 text-xs p-3 rounded-lg">
-          X-API-Key: crm_tu_key_aqui
-        </code>
-        <p className="text-gray-500 text-xs mt-3">
-          En n8n: agregá un header HTTP con ese valor en tus nodos de HTTP Request.
-        </p>
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-sm">
+            <span className="font-bold text-slate-400">Header:</span> <code className="font-bold text-slate-900">X-API-Key</code>
+            <br />
+            <span className="font-bold text-slate-400">Value:</span> <code className="font-bold text-primary-600">crm_tu_token_seguro_aqui</code>
+        </div>
       </div>
 
     </div>

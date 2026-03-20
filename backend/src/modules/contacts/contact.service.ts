@@ -228,7 +228,7 @@ export class ContactService {
     // Soft delete — no borramos el registro, solo lo marcamos
     // como archivado. Los datos históricos se preservan.
     await db.contact.update({
-      where: { id },
+      where: { id, workspaceId },
       data: { isArchived: true },
     })
 
@@ -279,13 +279,13 @@ export class ContactService {
       const mergedTags = [...new Set([...winner.tags, ...loser.tags])]
 
       await tx.contact.update({
-        where: { id: winnerId },
+        where: { id: winnerId, workspaceId },
         data: { ...mergedData, tags: mergedTags },
       })
 
       // Archivar el perdedor apuntando al ganador
       await tx.contact.update({
-        where: { id: loserId },
+        where: { id: loserId, workspaceId },
         data: { isArchived: true, mergedInto: winnerId },
       })
     })

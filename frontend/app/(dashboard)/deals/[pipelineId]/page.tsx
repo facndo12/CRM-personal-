@@ -38,31 +38,44 @@ function DealCard({ deal }: { deal: KanbanCard }) {
       {...attributes}
       {...listeners}
       className={clsx(
-        'bg-gray-800 border rounded-lg p-3 cursor-grab active:cursor-grabbing select-none',
-        isDragging ? 'opacity-40 border-indigo-500' : 'border-gray-700 hover:border-gray-600'
+        'bg-white border rounded-xl p-3 cursor-grab select-none transition-shadow duration-200 group relative',
+        isDragging ? 'opacity-50 ring-2 ring-primary-500 shadow-xl z-50 cursor-grabbing' : 'border-slate-200 hover:border-primary-300 hover:shadow-md shadow-sm'
       )}
       >
-      <p className="text-white text-sm font-medium leading-snug">{deal.title}</p>
+      {/* Indicador de arrastre sutil en hover */}
+      <div className="absolute top-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-[2px]">
+        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+      </div>
+
+      <p className="text-slate-900 text-sm font-bold leading-snug pr-4">{deal.title}</p>
+      
       {deal.value && (
-        <div className="flex items-center gap-1 mt-2">
-          <DollarSign size={12} className="text-green-400" />
-          <span className="text-green-400 text-xs font-medium">
+        <div className="flex items-center gap-1.5 mt-2.5">
+          <div className="flex items-center justify-center bg-emerald-100 text-emerald-600 rounded-md w-5 h-5">
+            <DollarSign size={12} strokeWidth={3} />
+          </div>
+          <span className="text-emerald-700 text-xs font-bold tracking-tight">
             {deal.value.toLocaleString()} {deal.currency}
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between mt-2">
+      
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
         {deal.isRotten ? (
-          <span className="flex items-center gap-1 text-xs text-orange-400">
-            <AlertTriangle size={10} /> Podrido
+          <span className="flex items-center gap-1.5 text-xs font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
+            <AlertTriangle size={12} /> Podrido
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <Clock size={10} /> {deal.daysInStage}d
+          <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <Clock size={12} className="text-slate-400" /> {deal.daysInStage}d
           </span>
         )}
         {deal.probability != null && (
-          <span className="text-xs text-gray-500">{deal.probability}%</span>
+          <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+            {deal.probability}%
+          </span>
         )}
       </div>
     </div>
@@ -81,37 +94,38 @@ function KanbanColumnComponent({
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id })
 
   return (
-    <div className="shrink-0 w-72 flex flex-col bg-gray-900 rounded-xl border border-gray-800">
+    <div className="shrink-0 w-80 flex flex-col bg-slate-50/80 rounded-2xl border border-slate-200/60 shadow-sm backdrop-blur-sm animate-fade-in relative max-h-full">
       {/* Header */}
-      <div className="p-3 border-b border-gray-800">
+      <div className="p-4 border-b border-slate-200/60 bg-white/60 rounded-t-2xl sticky top-0 z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: column.stage.color }} />
-            <span className="text-white text-sm font-medium">{column.stage.name}</span>
-            <span className="bg-gray-800 text-gray-400 text-xs px-1.5 py-0.5 rounded-full">
+          <div className="flex items-center gap-2.5">
+            <div className="w-3 h-3 rounded-full shadow-inner border border-black/5" style={{ backgroundColor: column.stage.color }} />
+            <span className="text-slate-900 text-sm font-extrabold tracking-tight">{column.stage.name}</span>
+            <span className="bg-white border border-slate-200 text-slate-600 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm">
               {column.count}
             </span>
           </div>
-          <button aria-label="boton que no se que hace"
+          <button
             onClick={() => onAddDeal(column.stage.id)}
-            className="text-gray-500 hover:text-white transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+            title="Crear negocio en esta etapa"
           >
-            <Plus size={16} />
+            <Plus size={16} strokeWidth={2.5}/>
           </button>
         </div>
         {column.totalValue > 0 && (
-          <p className="text-xs text-green-400 mt-1 pl-4">
-            ${column.totalValue.toLocaleString()}
+          <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
+            <DollarSign size={12} strokeWidth={2.5}/> {column.totalValue.toLocaleString()}
           </p>
         )}
       </div>
 
-      {/* Zona droppable — se pone verde cuando arrastrás encima */}
+      {/* Zona droppable — se pone azulada cuando arrastrás encima */}
       <div
         ref={setNodeRef}
         className={clsx(
-          'flex-1 p-2 space-y-2 min-h-24 rounded-b-xl transition-colors',
-          isOver ? 'bg-indigo-500/10' : ''
+          'flex-1 p-3 space-y-3 min-h-[150px] rounded-b-2xl transition-all duration-300 overflow-y-auto',
+          isOver ? 'bg-primary-50 border-2 border-dashed border-primary-300' : 'border-2 border-transparent'
         )}
       >
         <SortableContext
@@ -151,37 +165,43 @@ function CreateDealModal({
   })
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 w-full max-w-md">
-        <h3 className="text-white font-medium mb-4">Nuevo Deal</h3>
-        <div className="space-y-3">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 w-full max-w-md animate-slide-up">
+        <h3 className="text-slate-900 font-extrabold text-xl mb-6 tracking-tight flex items-center gap-2">
+            <span className="bg-primary-100 text-primary-600 p-1.5 rounded-lg"><Plus size={20} strokeWidth={3}/></span>
+            Nuevo Negocio
+        </h3>
+        <div className="space-y-4">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título del deal *"
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+            placeholder="Título del deal (ej: Acme Corp) *"
+            className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
             autoFocus
           />
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Valor (opcional)"
-            type="number"
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
-          />
+          <div className="relative">
+            <DollarSign size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="Monto estimado (opcional)"
+                type="number"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
+            />
+          </div>
         </div>
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-3 mt-8 pt-5 border-t border-slate-100">
           <button
             onClick={() => mutation.mutate()}
             disabled={!title || mutation.isPending}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+            className="btn-primary flex-1 py-2.5"
           >
-            {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
-            Crear Deal
+            {mutation.isPending && <Loader2 size={16} className="animate-spin" />}
+            Agregar y guardar
           </button>
           <button
             onClick={onClose}
-            className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm"
+            className="btn-secondary flex-1 py-2.5"
           >
             Cancelar
           </button>
@@ -273,12 +293,16 @@ export default function KanbanPage() {
   const totalValue = board.columns.reduce((s, c) => s + c.totalValue, 0)
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between shrink-0">
+    <div className="flex flex-col h-full bg-white relative animate-fade-in">
+      <div className="px-8 py-6 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white z-10 sticky top-0">
         <div>
-          <h1 className="text-xl font-bold text-white">{board.pipeline.name}</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            {totalDeals} deals · ${totalValue.toLocaleString()} en pipeline
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{board.pipeline.name}</h1>
+          <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
+            <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-bold">{totalDeals} negocios en pipeline</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-md text-xs border border-emerald-100">
+                Monto proyectado: ${totalValue.toLocaleString()}
+            </span>
           </p>
         </div>
       </div>
@@ -297,10 +321,15 @@ export default function KanbanPage() {
 
           <DragOverlay>
             {activeDeal ? (
-              <div className="bg-gray-800 border border-indigo-500 rounded-lg p-3 w-72 shadow-2xl rotate-2 opacity-95">
-                <p className="text-white text-sm font-medium">{activeDeal.title}</p>
+              <div className="bg-white border-2 border-primary-500 rounded-xl p-4 w-80 shadow-2xl shadow-primary-500/30 rotate-3 cursor-grabbing scale-105 transition-transform flex flex-col gap-2 opacity-95">
+                <p className="text-slate-900 text-sm font-bold leading-snug">{activeDeal.title}</p>
                 {activeDeal.value && (
-                  <p className="text-green-400 text-xs mt-1">${activeDeal.value.toLocaleString()}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className="flex items-center justify-center bg-emerald-100 text-emerald-600 rounded-md w-5 h-5">
+                        <DollarSign size={12} strokeWidth={3} />
+                    </div>
+                    <span className="text-emerald-700 text-xs font-bold">${activeDeal.value.toLocaleString()}</span>
+                  </div>
                 )}
               </div>
             ) : null}

@@ -70,64 +70,64 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Webhooks</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Webhooks</h1>
+          <p className="text-slate-500 font-medium mt-1">
             Notificaciones automáticas a sistemas externos
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="btn-primary"
         >
-          <Plus size={16} />
+          <Plus size={18} strokeWidth={2.5} />
           Nuevo webhook
         </button>
       </div>
 
       {/* Formulario */}
       {showForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
-          <h3 className="text-white font-medium mb-4">Nuevo webhook</h3>
+        <div className="interactive-card p-6 mb-8 animate-slide-up">
+          <h3 className="text-slate-900 font-bold mb-5 text-lg">Configurar nuevo webhook</h3>
 
           <div className="space-y-4">
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Nombre del webhook (ej: n8n contactos) *"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
 
             <input
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
               placeholder="https://tu-servidor.com/webhook *"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
 
             <input
               value={form.secret}
               onChange={(e) => setForm({ ...form, secret: e.target.value })}
               placeholder="Secret (opcional — para verificar firma HMAC)"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
 
             <div>
-              <p className="text-gray-400 text-xs mb-2">Eventos a escuchar:</p>
+              <p className="text-slate-600 text-xs font-bold mb-3 uppercase tracking-wider">Eventos a escuchar:</p>
               <div className="flex flex-wrap gap-2">
                 {EVENT_OPTIONS.map((event) => (
                   <button
                     key={event}
                     onClick={() => toggleEvent(event)}
                     className={clsx(
-                      'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                      'text-xs px-3.5 py-2 rounded-full font-bold transition-all border',
                       form.events.includes(event)
-                        ? 'bg-indigo-600 border-indigo-500 text-white'
-                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                        ? 'bg-primary-100 border-primary-300 text-primary-800 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
                     )}
                   >
                     {event}
@@ -137,18 +137,18 @@ export default function WebhooksPage() {
             </div>
           </div>
 
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3 mt-6 pt-5 border-t border-slate-100">
             <button
               onClick={() => createMutation.mutate()}
               disabled={!form.name || !form.url || form.events.length === 0 || createMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+              className="btn-primary"
             >
-              {createMutation.isPending && <Loader2 size={14} className="animate-spin" />}
-              Guardar
+              {createMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              Guardar webhook
             </button>
             <button
               onClick={() => setShowForm(false)}
-              className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm"
+              className="btn-secondary"
             >
               Cancelar
             </button>
@@ -159,51 +159,52 @@ export default function WebhooksPage() {
       {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-indigo-500" size={32} />
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : webhooks?.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
-          <WebhookIcon size={48} className="mx-auto mb-3 opacity-30"/>
-          <p>No hay webhooks configurados</p>
+        <div className="text-center py-24 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+          <WebhookIcon size={56} className="mx-auto mb-4 text-slate-300" strokeWidth={1.5} />
+          <p className="text-slate-500 font-medium text-lg">No hay webhooks configurados</p>
+          <p className="text-slate-400 text-sm mt-1">Sincronizá tus datos con plataformas externas agregando uno.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {webhooks?.map((wh) => (
             <div
               key={wh.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-4"
+              className="interactive-card p-5"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
 
                   {/* URL y estado */}
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
                     {wh.isActive ? (
-                      <CheckCircle2 size={14} className="text-green-400 shrink-0" />
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0" strokeWidth={2.5} />
                     ) : (
-                      <XCircle size={14} className="text-red-400 shrink-0" />
+                      <XCircle size={16} className="text-red-500 shrink-0" strokeWidth={2.5} />
                     )}
-                    <span className="text-white text-sm font-medium truncate">
+                    <span className="text-slate-900 text-base font-semibold truncate tracking-tight">
                       {wh.url}
                     </span>
                     <button
                       onClick={() => copyToClipboard(wh.url, wh.id)}
-                      className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
+                      className="text-slate-400 hover:text-primary-600 transition-colors shrink-0 p-1 hover:bg-primary-50 rounded-md"
                       title="Copiar URL"
                     >
                       {copiedId === wh.id
-                        ? <Check size={12} className="text-green-400" />
-                        : <Copy size={12} />
+                        ? <Check size={14} className="text-emerald-500" />
+                        : <Copy size={14} />
                       }
                     </button>
                   </div>
 
                   {/* Eventos */}
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-2 mb-4">
                     {wh.events.map((event: string) => (
                       <span
                         key={event}
-                        className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full"
+                        className="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200"
                       >
                         {event}
                       </span>
@@ -211,16 +212,18 @@ export default function WebhooksPage() {
                   </div>
 
                   {/* Stats */}
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="text-xs text-gray-500">
+                  <div className="flex items-center gap-5 mt-2 bg-slate-50 px-3 py-2 rounded-lg inline-flex border border-slate-100">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                       {wh.successCount} exitosos
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
                       {wh.failureCount} fallidos
                     </span>
                     {wh.lastTriggeredAt && (
-                      <span className="text-xs text-gray-500">
-                        Último: {new Date(wh.lastTriggeredAt).toLocaleDateString()}
+                      <span className="text-xs font-medium text-slate-400 border-l border-slate-200 pl-4">
+                        Última vez: {new Date(wh.lastTriggeredAt).toLocaleDateString()}
                       </span>
                     )}
                   </div>
@@ -231,8 +234,8 @@ export default function WebhooksPage() {
                   <button
                     onClick={() => testMutation.mutate(wh.id)}
                     disabled={testMutation.isPending}
-                    className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
-                    title="Enviar test"
+                    className="btn-secondary !text-xs !py-1.5 !px-3"
+                    title="Enviar evento de prueba"
                   >
                     {testMutation.isPending
                       ? <Loader2 size={12} className="animate-spin" />
@@ -242,10 +245,10 @@ export default function WebhooksPage() {
                   </button>
                   <button
                     onClick={() => deleteMutation.mutate(wh.id)}
-                    className="text-gray-600 hover:text-red-400 transition-colors p-1.5"
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Eliminar"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

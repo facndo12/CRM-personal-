@@ -24,6 +24,18 @@ export class EventBus {
   constructor(redisUrl: string) {
     this.emitter.setMaxListeners(50)
 
+    const isDev = process.env.NODE_ENV === 'development'
+
+    if (isDev) {
+      console.warn('⚠️ Ejecutando EventBus sin BullMQ/Redis (entorno local). Usando Fallback en memoria.')
+      this.webhookQueue = {
+        add: async (name: string, data: any, opts: any) => {
+          setTimeout(() => this.processWebhook({ data } as any).catch(console.error), 500)
+        }
+      } as unknown as Queue
+      return
+    }
+
     // BullMQ crea su propia conexión internamente con la URL
     const connection = { url: redisUrl }
 
