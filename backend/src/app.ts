@@ -4,6 +4,7 @@ import fastifyJwt from '@fastify/jwt'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
 
+import { initSentry, Sentry } from './core/monitoring/sentry'
 import { config } from './core/config'
 import { EventBus } from './core/event-bus'
 import { AppError } from './types'
@@ -20,6 +21,7 @@ import { noteRoutes } from './modules/notes/note.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 
 export async function buildApp() {
+  initSentry()
   // ─── Servidor ──────────────────────────────────────────────────
   const isServerless = process.env.VERCEL === '1'
 
@@ -92,6 +94,17 @@ export async function buildApp() {
   // llegar al cliente — así la respuesta siempre tiene el
   // mismo formato sin importar dónde ocurrió el error
   app.setErrorHandler((error: any, req, reply) => {
+
+    // Reportar a Sentry solo errores inesperados (no los de negocio)
+    if (
+      !(error instanceof AppError) &&
+      error.name !== 'ZodError' &&
+      error.code !== 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' &&
+      error.code !== 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
+    ) {
+      Sentry.captureException(error)
+    }
+
     // Error de validación de Zod
     if (error.name === 'ZodError') {
       return reply.status(422).send({
