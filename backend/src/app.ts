@@ -95,7 +95,7 @@ export async function buildApp() {
   // mismo formato sin importar dónde ocurrió el error
   app.setErrorHandler((error: any, req, reply) => {
 
-    // Reportar a Sentry solo errores inesperados (no los de negocio)
+    // Reportar a Sentry solo errores inesperados 
     if (
       !(error instanceof AppError) &&
       error.name !== 'ZodError' &&

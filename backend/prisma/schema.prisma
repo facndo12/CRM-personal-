@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 datasource db {
   provider  = "postgresql"
@@ -39,6 +38,8 @@ model User {
   avatar       String?   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
 
   workspaces WorkspaceUser[]
 
