@@ -62,6 +62,11 @@ export const authApi = {
 
   deleteApiKey: (id: string) =>
     api.delete(`/auth/api-keys/${id}`),
+
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/reset-password', { token, password }),
 }
 
 // ─── Contactos ────────────────────────────────────────────────────

@@ -109,6 +109,12 @@ export default function LoginPage() {
                 </>
               ) : 'Ingresar al CRM'}
             </button>
+
+            <div className="text-center mt-4">
+              <Link href="/forgot-password" className="text-sm text-indigo-400 hover:text-indigo-300">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </form>
 
           <p className="mt-8 text-center text-sm font-medium text-slate-500">
