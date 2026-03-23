@@ -173,8 +173,8 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
       throw new ValidationError('Meta solo implementa envio saliente para WhatsApp en este paso')
     }
 
-    if (input.attachments?.length) {
-      throw new ValidationError('Este paso solo admite mensajes de texto para WhatsApp')
+    if ((input.attachments?.length ?? 0) > 1) {
+      throw new ValidationError('WhatsApp solo admite un adjunto saliente por mensaje en este paso')
     }
 
     const externalAccountId = this.asString(input.externalAccountId)
@@ -188,8 +188,10 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
 
     const text = this.asString(input.text)
-    if (!text) {
-      throw new ValidationError('El mensaje de WhatsApp no puede estar vacio')
+    const attachment = input.attachments?.[0]
+
+    if (!text && !attachment) {
+      throw new ValidationError('WhatsApp necesita texto o un adjunto para enviar el mensaje')
     }
 
     const accessToken = this.readString(input.credentials, 'accessToken')
@@ -197,26 +199,20 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
       throw new ValidationError('La conexion de WhatsApp no tiene accessToken configurado')
     }
 
-    const payload: PlainObject = {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: externalUserId,
-      type: 'text',
-      text: {
-        body: text,
-      },
-    }
-
     const previewUrl = this.readBoolean(input.metadata, 'previewUrl')
-    if (previewUrl !== undefined) {
-      payload.text.preview_url = previewUrl
-    }
-
-    if (input.providerReplyToId) {
-      payload.context = {
-        message_id: input.providerReplyToId,
-      }
-    }
+    const payload = attachment
+      ? this.buildWhatsAppMediaPayload({
+          to: externalUserId,
+          text,
+          attachment,
+          providerReplyToId: input.providerReplyToId,
+        })
+      : this.buildWhatsAppTextPayload({
+          to: externalUserId,
+          text,
+          previewUrl,
+          providerReplyToId: input.providerReplyToId,
+        })
 
     const endpoint = `${this.resolveBaseUrl(input)}/${this.resolveApiVersion(input)}/${externalAccountId}/messages`
     const rawResponse = await this.postJson(endpoint, accessToken, payload)
@@ -230,6 +226,106 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
       providerMessageId,
       acceptedAt: new Date(),
       rawResponse,
+    }
+  }
+
+  private buildWhatsAppTextPayload(input: {
+    to: string
+    text?: string
+    previewUrl?: boolean
+    providerReplyToId?: string
+  }): PlainObject {
+    if (!input.text) {
+      throw new ValidationError('El mensaje de WhatsApp no puede estar vacio')
+    }
+
+    const payload: PlainObject = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: input.to,
+      type: 'text',
+      text: {
+        body: input.text,
+      },
+    }
+
+    if (input.previewUrl !== undefined) {
+      payload.text.preview_url = input.previewUrl
+    }
+
+    if (input.providerReplyToId) {
+      payload.context = {
+        message_id: input.providerReplyToId,
+      }
+    }
+
+    return payload
+  }
+
+  private buildWhatsAppMediaPayload(input: {
+    to: string
+    text?: string
+    attachment: NormalizedAttachment
+    providerReplyToId?: string
+  }): PlainObject {
+    const mediaType = this.mapOutboundWhatsAppMediaType(input.attachment.type)
+    if (!mediaType) {
+      throw new ValidationError('WhatsApp no admite ese tipo de adjunto saliente en este paso')
+    }
+
+    if (mediaType === 'audio' && input.text) {
+      throw new ValidationError('WhatsApp no admite caption en mensajes de audio')
+    }
+
+    const mediaObject: PlainObject = {
+      ...(input.attachment.externalAssetId
+        ? { id: input.attachment.externalAssetId }
+        : input.attachment.url
+          ? { link: input.attachment.url }
+          : {}),
+    }
+
+    if (!mediaObject.id && !mediaObject.link) {
+      throw new ValidationError('El adjunto de WhatsApp necesita externalAssetId o url')
+    }
+
+    if (input.text && mediaType !== 'audio') {
+      mediaObject.caption = input.text
+    }
+
+    if (mediaType === 'document' && input.attachment.fileName) {
+      mediaObject.filename = input.attachment.fileName
+    }
+
+    const payload: PlainObject = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: input.to,
+      type: mediaType,
+      [mediaType]: mediaObject,
+    }
+
+    if (input.providerReplyToId) {
+      payload.context = {
+        message_id: input.providerReplyToId,
+      }
+    }
+
+    return payload
+  }
+
+  private mapOutboundWhatsAppMediaType(type: NormalizedAttachment['type']): 'image' | 'audio' | 'video' | 'document' | null {
+    switch (type) {
+      case 'image':
+        return 'image'
+      case 'audio':
+        return 'audio'
+      case 'video':
+        return 'video'
+      case 'file':
+        return 'document'
+      default:
+        return null
     }
   }
 

@@ -48,10 +48,35 @@ const updateConnectionSchema = z.object({
   lastSyncedAt: z.union([z.coerce.date(), z.null()]).optional(),
 })
 
+const outboundAttachmentSchema = z.object({
+  type: z.enum(['image', 'audio', 'video', 'file']),
+  url: z.string().url().optional(),
+  externalAssetId: z.string().min(1).max(255).optional(),
+  mimeType: z.string().min(1).max(160).optional(),
+  fileName: z.string().min(1).max(255).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.url && !value.externalAssetId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'El adjunto necesita url o externalAssetId',
+      path: ['url'],
+    })
+  }
+})
+
 const sendConversationMessageSchema = z.object({
-  text: z.string().min(1).max(4096),
+  text: z.string().min(1).max(4096).optional(),
   replyToMessageId: z.string().min(1).optional(),
   previewUrl: z.boolean().optional(),
+  attachment: outboundAttachmentSchema.optional(),
+}).superRefine((value, ctx) => {
+  if (!value.text?.trim() && !value.attachment) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Debes enviar texto o un adjunto',
+      path: ['text'],
+    })
+  }
 })
 
 const completeEmbeddedSignupSchema = z.object({

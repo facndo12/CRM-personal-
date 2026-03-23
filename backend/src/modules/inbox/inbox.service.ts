@@ -12,6 +12,7 @@ import {
 import type { ChannelProviderAdapter } from './provider'
 import type {
   ConnectionInspectionResult,
+  NormalizedAttachment,
   NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
@@ -40,9 +41,16 @@ export interface ChannelConnectionUpdateInput {
 }
 
 export interface SendConversationMessageInput {
-  text: string
+  text?: string
   replyToMessageId?: string
   previewUrl?: boolean
+  attachment?: {
+    type: 'image' | 'audio' | 'video' | 'file'
+    url?: string
+    externalAssetId?: string
+    mimeType?: string
+    fileName?: string
+  }
 }
 
 export interface ConversationFilters extends PaginationQuery {
@@ -366,9 +374,11 @@ export class InboxService {
     conversationId: string,
     input: SendConversationMessageInput
   ): Promise<unknown> {
-    const text = input.text.trim()
-    if (!text) {
-      throw new ValidationError('El mensaje no puede estar vacio')
+    const text = input.text?.trim()
+    const attachment = this.normalizeOutboundAttachment(input.attachment)
+
+    if (!text && !attachment) {
+      throw new ValidationError('Debes enviar texto o un adjunto')
     }
 
     const conversation = await inboxDb.conversation.findFirst({
@@ -403,15 +413,29 @@ export class InboxService {
           provider: conversation.provider,
           channel: conversation.channel,
           direction: 'outbound',
-          type: 'text',
+          type: attachment?.type ?? 'text',
           status: 'pending',
           providerReplyToId: replyTarget?.providerMessageId,
           text,
           metadata: {
-            previewUrl: input.previewUrl ?? false,
+            ...(input.previewUrl !== undefined && { previewUrl: input.previewUrl }),
           } as Prisma.InputJsonValue,
         },
       })
+
+      if (attachment) {
+        await tx.messageAttachment.create({
+          data: {
+            messageId: createdMessage.id,
+            type: attachment.type,
+            mimeType: attachment.mimeType,
+            url: attachment.url,
+            externalAssetId: attachment.externalAssetId,
+            fileName: attachment.fileName,
+            metadata: {} as Prisma.InputJsonValue,
+          },
+        })
+      }
 
       await tx.conversation.update({
         where: { id: conversation.id },
@@ -433,8 +457,9 @@ export class InboxService {
       externalThreadId: conversation.externalThreadId,
       providerReplyToId: replyTarget?.providerMessageId,
       text,
+      attachments: attachment ? [attachment] : undefined,
       metadata: {
-        previewUrl: input.previewUrl ?? false,
+        ...(input.previewUrl !== undefined && { previewUrl: input.previewUrl }),
       },
       credentials: this.asJsonRecord(conversation.connection.credentials),
       settings: this.asJsonRecord(conversation.connection.settings),
@@ -1017,6 +1042,28 @@ export class InboxService {
     }
 
     return message
+  }
+
+  private normalizeOutboundAttachment(
+    input: SendConversationMessageInput['attachment']
+  ): NormalizedAttachment | undefined {
+    if (!input) return undefined
+
+    const url = input.url?.trim()
+    const externalAssetId = input.externalAssetId?.trim()
+
+    if (!url && !externalAssetId) {
+      throw new ValidationError('El adjunto necesita url o externalAssetId')
+    }
+
+    return {
+      type: input.type,
+      ...(url && { url }),
+      ...(externalAssetId && { externalAssetId }),
+      ...(input.mimeType?.trim() && { mimeType: input.mimeType.trim() }),
+      ...(input.fileName?.trim() && { fileName: input.fileName.trim() }),
+      metadata: {},
+    }
   }
 
   private buildMessageStatusUpdate(message: any, event: NormalizedDeliveryEvent): Record<string, unknown> {
