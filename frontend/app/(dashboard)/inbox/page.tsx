@@ -1,12 +1,13 @@
 'use client'
 
-import { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { startTransition, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
 import {
   AlertCircle,
   CheckCheck,
+  ChevronDown,
   Circle,
   Clock3,
   Inbox,
@@ -27,6 +28,9 @@ import { canDo, type InboxConversation, type InboxMessage, type PaginatedResult,
 const ALLOWED_ROLES: Role[] = ['owner', 'admin', 'member']
 const CONVERSATION_LIMIT = 100
 const MESSAGE_LIMIT = 100
+const CONVERSATIONS_REFRESH_MS = 12_000
+const MESSAGES_REFRESH_MS = 6_000
+const BOTTOM_LOCK_THRESHOLD_PX = 96
 
 function formatStamp(value?: string | null) {
   if (!value) return 'Sin fecha'
@@ -36,6 +40,16 @@ function formatStamp(value?: string | null) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function formatSyncStamp(value?: number) {
+  if (!value) return 'Sin sincronizar'
+
+  return new Intl.DateTimeFormat('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   }).format(new Date(value))
 }
 
@@ -81,12 +95,18 @@ export default function InboxPage() {
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const messagesViewportRef = useRef<HTMLDivElement | null>(null)
+  const previousConversationIdRef = useRef<string | null>(null)
+  const previousMessageCountRef = useRef(0)
+  const markingReadConversationRef = useRef<string | null>(null)
 
   const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
   const [userReady, setUserReady] = useState(false)
+  const [isPageVisible, setIsPageVisible] = useState(true)
+  const [isOnline, setIsOnline] = useState(true)
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [hasPendingNewMessages, setHasPendingNewMessages] = useState(false)
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState('')
-  const [markedReadIds, setMarkedReadIds] = useState<string[]>([])
   const deferredSearch = useDeferredValue(search)
 
   useEffect(() => {
@@ -94,8 +114,29 @@ export default function InboxPage() {
     setUserReady(true)
   }, [])
 
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return
+
+    const syncRuntimeState = () => {
+      setIsPageVisible(document.visibilityState === 'visible')
+      setIsOnline(window.navigator.onLine)
+    }
+
+    syncRuntimeState()
+    document.addEventListener('visibilitychange', syncRuntimeState)
+    window.addEventListener('online', syncRuntimeState)
+    window.addEventListener('offline', syncRuntimeState)
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncRuntimeState)
+      window.removeEventListener('online', syncRuntimeState)
+      window.removeEventListener('offline', syncRuntimeState)
+    }
+  }, [])
+
   const canAccessInbox = canDo(user?.role, ALLOWED_ROLES)
   const selectedConversationId = searchParams.get('conversation')
+  const canAutoRefresh = userReady && canAccessInbox && isPageVisible && isOnline
 
   const conversationsQuery = useQuery<PaginatedResult<InboxConversation>>({
     queryKey: ['inbox-conversations', 'whatsapp'],
@@ -105,6 +146,10 @@ export default function InboxPage() {
       limit: CONVERSATION_LIMIT,
     }).then((response) => response.data),
     enabled: userReady && canAccessInbox,
+    refetchInterval: canAutoRefresh ? CONVERSATIONS_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   })
 
   const conversations = conversationsQuery.data?.items ?? []
@@ -130,20 +175,46 @@ export default function InboxPage() {
       page: 0,
       limit: MESSAGE_LIMIT,
     }).then((response) => response.data),
-    enabled: canAccessInbox && !!selectedConversation?.id,
+    enabled: userReady && canAccessInbox && !!selectedConversation?.id,
+    refetchInterval: canAutoRefresh && selectedConversation?.id ? MESSAGES_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   })
-
   const messages = messagesQuery.data?.items ?? []
   const totalUnread = conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0)
   const connectedCount = conversations.filter((conversation) => conversation.connection.status === 'connected').length
+  const lastSyncAt = Math.max(conversationsQuery.dataUpdatedAt || 0, messagesQuery.dataUpdatedAt || 0)
+  const syncLabel = !isOnline
+    ? 'Sin conexion'
+    : !isPageVisible
+      ? 'Refresco en pausa'
+      : conversationsQuery.isFetching || messagesQuery.isFetching
+        ? 'Actualizando'
+        : 'Auto refresh activo'
+
+  const scrollToBottom = useEffectEvent((behavior: ScrollBehavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) return
+
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior,
+    })
+  })
+
+  const refreshInbox = useEffectEvent(async () => {
+    await conversationsQuery.refetch()
+
+    if (selectedConversation?.id) {
+      await messagesQuery.refetch()
+    }
+  })
 
   const markReadMutation = useMutation({
     mutationFn: (conversationId: string) => inboxApi.markConversationRead(conversationId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] })
-    },
-    onError: (_error, conversationId) => {
-      setMarkedReadIds((current) => current.filter((id) => id !== conversationId))
     },
   })
 
@@ -155,10 +226,12 @@ export default function InboxPage() {
       }).then((response) => response.data),
     onSuccess: async (_message, payload) => {
       setDraft('')
+      setHasPendingNewMessages(false)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inbox-conversations'] }),
         queryClient.invalidateQueries({ queryKey: ['inbox-messages', payload.conversationId] }),
       ])
+      scrollToBottom('smooth')
     },
     onError: (error: any) => {
       alert(error.response?.data?.message || error.message || 'No se pudo enviar el mensaje')
@@ -179,20 +252,73 @@ export default function InboxPage() {
   }, [canAccessInbox, conversations, router, searchParams, selectedConversationId])
 
   useEffect(() => {
-    if (!selectedConversation?.id || selectedConversation.unreadCount < 1) return
-    if (markedReadIds.includes(selectedConversation.id)) return
+    const conversationId = selectedConversation?.id
+    if (!conversationId || selectedConversation.unreadCount < 1) return
+    if (markingReadConversationRef.current === conversationId) return
 
-    setMarkedReadIds((current) => current.includes(selectedConversation.id)
-      ? current
-      : [...current, selectedConversation.id])
-
-    markReadMutation.mutate(selectedConversation.id)
-  }, [markedReadIds, selectedConversation, markReadMutation])
+    markingReadConversationRef.current = conversationId
+    markReadMutation.mutate(conversationId, {
+      onSettled: () => {
+        if (markingReadConversationRef.current === conversationId) {
+          markingReadConversationRef.current = null
+        }
+      },
+    })
+  }, [markReadMutation, selectedConversation?.id, selectedConversation?.unreadCount])
 
   useEffect(() => {
-    if (!messagesViewportRef.current || messages.length === 0) return
-    messagesViewportRef.current.scrollTop = messagesViewportRef.current.scrollHeight
-  }, [messages.length, selectedConversation?.id])
+    const viewport = messagesViewportRef.current
+    if (!viewport) return
+
+    const updateScrollState = () => {
+      const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      const nextNearBottom = remaining <= BOTTOM_LOCK_THRESHOLD_PX
+
+      setIsNearBottom((current) => current === nextNearBottom ? current : nextNearBottom)
+      if (nextNearBottom) {
+        setHasPendingNewMessages(false)
+      }
+    }
+
+    updateScrollState()
+    viewport.addEventListener('scroll', updateScrollState, { passive: true })
+
+    return () => {
+      viewport.removeEventListener('scroll', updateScrollState)
+    }
+  }, [selectedConversation?.id, messages.length])
+
+  useEffect(() => {
+    const conversationId = selectedConversation?.id ?? null
+
+    if (!conversationId) {
+      previousConversationIdRef.current = null
+      previousMessageCountRef.current = 0
+      setHasPendingNewMessages(false)
+      return
+    }
+
+    if (previousConversationIdRef.current !== conversationId) {
+      previousConversationIdRef.current = conversationId
+      previousMessageCountRef.current = messages.length
+      setHasPendingNewMessages(false)
+      scrollToBottom()
+      return
+    }
+
+    if (messages.length > previousMessageCountRef.current) {
+      const latestMessage = messages[messages.length - 1]
+
+      if (latestMessage.direction === 'outbound' || isNearBottom) {
+        setHasPendingNewMessages(false)
+        scrollToBottom(latestMessage.direction === 'outbound' ? 'smooth' : 'auto')
+      } else if (latestMessage.direction === 'inbound') {
+        setHasPendingNewMessages(true)
+      }
+    }
+
+    previousMessageCountRef.current = messages.length
+  }, [isNearBottom, messages, scrollToBottom, selectedConversation?.id])
 
   function selectConversation(conversationId: string) {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -205,7 +331,7 @@ export default function InboxPage() {
 
   function handleSendMessage() {
     const text = draft.trim()
-    if (!selectedConversation?.id || !text || sendMutation.isPending) return
+    if (!selectedConversation?.id || !text || sendMutation.isPending || !isOnline) return
 
     sendMutation.mutate({
       conversationId: selectedConversation.id,
@@ -252,7 +378,7 @@ export default function InboxPage() {
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50">Bandeja operativa de conversaciones</h1>
             <p className="mt-2 max-w-3xl text-sm font-medium text-slate-600 dark:text-slate-300">
-              Esta pantalla ya trabaja sobre el dominio nuevo de inbox. Sirve para operar conversaciones y responder texto. Todavia no es realtime ni soporta media saliente, asi que no la voy a vender como algo mas grande de lo que es.
+              Este paso vuelve la bandeja menos torpe: refresca sola cuando la pestaña esta visible y online, sin venderte realtime falso ni pegarle al backend cuando no hace falta.
             </p>
           </div>
 
@@ -284,15 +410,12 @@ export default function InboxPage() {
               <button
                 type="button"
                 onClick={() => {
-                  conversationsQuery.refetch()
-                  if (selectedConversation?.id) {
-                    messagesQuery.refetch()
-                  }
+                  void refreshInbox()
                 }}
                 className="btn-secondary h-10 w-10 rounded-xl p-0"
                 aria-label="Actualizar inbox"
               >
-                <RefreshCw size={16} className={clsx((conversationsQuery.isFetching || messagesQuery.isFetching) && 'animate-spin')} />
+                <RefreshCw size={16} className={clsx((conversationsQuery.isFetching || messagesQuery.isFetching || sendMutation.isPending) && 'animate-spin')} />
               </button>
             </div>
 
@@ -304,6 +427,28 @@ export default function InboxPage() {
                 placeholder="Buscar por nombre, telefono o ultimo mensaje"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/20 dark:border-slate-600/70 dark:bg-slate-800/90 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={clsx(
+                'inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em]',
+                !isOnline
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200'
+                  : !isPageVisible
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
+              )}>
+                {!isOnline ? <WifiOff size={12} /> : <Circle size={10} className="fill-current" />}
+                {syncLabel}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:border-slate-600/70 dark:bg-slate-800/90 dark:text-slate-300">
+                Lista {CONVERSATIONS_REFRESH_MS / 1000}s
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:border-slate-600/70 dark:bg-slate-800/90 dark:text-slate-300">
+                Hilo {MESSAGES_REFRESH_MS / 1000}s
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:border-slate-600/70 dark:bg-slate-800/90 dark:text-slate-300">
+                Ult. sync {formatSyncStamp(lastSyncAt)}
+              </span>
             </div>
           </div>
 
@@ -428,7 +573,6 @@ export default function InboxPage() {
                       </div>
                     </div>
                   </div>
-
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200">
                       WhatsApp
@@ -436,86 +580,125 @@ export default function InboxPage() {
                     <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                       {selectedConversation.status}
                     </span>
+                    <span className={clsx(
+                      'rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]',
+                      !isOnline
+                        ? 'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-400/30 dark:bg-rose-500/15 dark:text-rose-200'
+                        : !isPageVisible
+                          ? 'border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200'
+                          : 'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200'
+                    )}>
+                      {syncLabel}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div ref={messagesViewportRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,_rgba(255,255,255,0.36),_transparent_22%),radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_32%)] px-5 py-5 dark:bg-[linear-gradient(180deg,_rgba(30,41,59,0.3),_transparent_22%),radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_32%)]">
-                {messagesQuery.isLoading ? (
-                  <div className="flex h-full items-center justify-center py-16">
-                    <Loader2 className="animate-spin text-primary-600" size={28} />
-                  </div>
-                ) : messagesQuery.isError ? (
-                  <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50/70 p-6 text-center dark:border-rose-400/30 dark:bg-rose-950/20">
-                    <AlertCircle className="mx-auto mb-3 text-rose-500 dark:text-rose-300" size={28} />
-                    <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">No pude cargar el historial de mensajes.</p>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/70 p-8 text-center dark:border-slate-600/70 dark:bg-slate-900/30">
-                    <Inbox className="mb-4 text-slate-400 dark:text-slate-500" size={36} strokeWidth={1.8} />
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">La conversacion existe, pero todavia no tiene mensajes guardados.</p>
-                  </div>
-                ) : (
-                  messages.map((message) => {
-                    const state = resolveMessageState(message)
-                    const isOutbound = message.direction === 'outbound'
+              <div className="relative min-h-0 flex-1">
+                <div ref={messagesViewportRef} className="h-full space-y-4 overflow-y-auto bg-[linear-gradient(180deg,_rgba(255,255,255,0.36),_transparent_22%),radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_32%)] px-5 py-5 dark:bg-[linear-gradient(180deg,_rgba(30,41,59,0.3),_transparent_22%),radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_32%)]">
+                  {messagesQuery.isLoading ? (
+                    <div className="flex h-full items-center justify-center py-16">
+                      <Loader2 className="animate-spin text-primary-600" size={28} />
+                    </div>
+                  ) : messagesQuery.isError ? (
+                    <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50/70 p-6 text-center dark:border-rose-400/30 dark:bg-rose-950/20">
+                      <AlertCircle className="mx-auto mb-3 text-rose-500 dark:text-rose-300" size={28} />
+                      <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">No pude cargar el historial de mensajes.</p>
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/70 p-8 text-center dark:border-slate-600/70 dark:bg-slate-900/30">
+                      <Inbox className="mb-4 text-slate-400 dark:text-slate-500" size={36} strokeWidth={1.8} />
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">La conversacion existe, pero todavia no tiene mensajes guardados.</p>
+                    </div>
+                  ) : (
+                    messages.map((message) => {
+                      const state = resolveMessageState(message)
+                      const isOutbound = message.direction === 'outbound'
 
-                    return (
-                      <div key={message.id} className={clsx('flex', isOutbound ? 'justify-end' : 'justify-start')}>
-                        <div
-                          className={clsx(
-                            'max-w-[82%] rounded-3xl border px-4 py-3 shadow-sm',
-                            isOutbound
-                              ? 'border-primary-200 bg-primary-600 text-white shadow-primary-500/20 dark:border-primary-400/30 dark:bg-primary-500'
-                              : 'border-white/80 bg-white/90 text-slate-900 dark:border-slate-600/70 dark:bg-slate-800/95 dark:text-slate-50'
-                          )}
-                        >
-                          {message.text?.trim() ? (
-                            <p className="whitespace-pre-wrap text-sm font-medium leading-6">{message.text}</p>
-                          ) : (
-                            <p className="text-sm font-medium italic opacity-80">Mensaje sin texto visible</p>
-                          )}
-
-                          {message.attachments.length > 0 && (
-                            <div className={clsx(
-                              'mt-3 rounded-2xl border px-3 py-2 text-xs font-semibold',
+                      return (
+                        <div key={message.id} className={clsx('flex', isOutbound ? 'justify-end' : 'justify-start')}>
+                          <div
+                            className={clsx(
+                              'max-w-[82%] rounded-3xl border px-4 py-3 shadow-sm',
                               isOutbound
-                                ? 'border-white/20 bg-white/10 text-white/90'
-                                : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300'
-                            )}>
-                              {message.attachments.length} adjunto(s) guardado(s). La previsualizacion fina la dejo para otro paso; hoy importa operar el hilo.
-                            </div>
-                          )}
-
-                          <div className={clsx(
-                            'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold',
-                            isOutbound ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
-                          )}>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Clock3 size={12} />
-                              {formatStamp(message.sentAt || message.createdAt)}
-                            </span>
-                            {isOutbound && (
-                              <span className={clsx('inline-flex items-center gap-1.5', state.tone, isOutbound && 'text-white/90 dark:text-white/90')}>
-                                <CheckCheck size={12} />
-                                {state.label}
-                              </span>
+                                ? 'border-primary-200 bg-primary-600 text-white shadow-primary-500/20 dark:border-primary-400/30 dark:bg-primary-500'
+                                : 'border-white/80 bg-white/90 text-slate-900 dark:border-slate-600/70 dark:bg-slate-800/95 dark:text-slate-50'
                             )}
+                          >
+                            {message.text?.trim() ? (
+                              <p className="whitespace-pre-wrap text-sm font-medium leading-6">{message.text}</p>
+                            ) : (
+                              <p className="text-sm font-medium italic opacity-80">Mensaje sin texto visible</p>
+                            )}
+
+                            {message.attachments.length > 0 && (
+                              <div className={clsx(
+                                'mt-3 rounded-2xl border px-3 py-2 text-xs font-semibold',
+                                isOutbound
+                                  ? 'border-white/20 bg-white/10 text-white/90'
+                                  : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300'
+                              )}>
+                                {message.attachments.length} adjunto(s) guardado(s). La previsualizacion fina la dejo para otro paso; hoy importa operar el hilo.
+                              </div>
+                            )}
+
+                            <div className={clsx(
+                              'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold',
+                              isOutbound ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+                            )}>
+                              <span className="inline-flex items-center gap-1.5">
+                                <Clock3 size={12} />
+                                {formatStamp(message.sentAt || message.createdAt)}
+                              </span>
+                              {isOutbound && (
+                                <span className={clsx('inline-flex items-center gap-1.5', state.tone, isOutbound && 'text-white/90 dark:text-white/90')}>
+                                  <CheckCheck size={12} />
+                                  {state.label}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })
+                      )
+                    })
+                  )}
+                </div>
+
+                {hasPendingNewMessages && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasPendingNewMessages(false)
+                        scrollToBottom('smooth')
+                      }}
+                      className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-black text-primary-700 shadow-lg shadow-primary-500/10 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      <ChevronDown size={16} />
+                      Hay mensajes nuevos. Ir al final
+                    </button>
+                  </div>
                 )}
               </div>
 
               <div className="border-t border-slate-200/80 bg-white/80 px-5 py-4 dark:border-slate-700/70 dark:bg-slate-900/50">
+                {!isOnline && (
+                  <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/15 dark:text-rose-200">
+                    Estas offline. El inbox deja de refrescar y no envio mensajes hasta que vuelva la conexion.
+                  </div>
+                )}
+
+                {isOnline && !isPageVisible && (
+                  <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200">
+                    El auto refresh se pausa cuando cambias de pestaña. Lo hago a proposito para no gastar requests sin sentido.
+                  </div>
+                )}
+
                 {selectedConversation.connection.status !== 'connected' && (
                   <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200">
                     La conexion esta en estado {selectedConversation.connection.status}. El backend intentara enviar igual, pero si la credencial esta rota va a fallar. Prefiero avisartelo antes que dibujarte una UI optimista falsa.
                   </div>
                 )}
-
                 <div className="flex items-end gap-3">
                   <textarea
                     value={draft}
@@ -526,14 +709,14 @@ export default function InboxPage() {
                         handleSendMessage()
                       }
                     }}
-                    placeholder="Escribe una respuesta y presiona Enter"
+                    placeholder={isOnline ? 'Escribe una respuesta y presiona Enter' : 'Sin conexion. Puedes seguir escribiendo, pero no enviar'}
                     rows={3}
                     className="min-h-[84px] flex-1 resize-none rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/20 dark:border-slate-600/70 dark:bg-slate-800/90 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                   <button
                     type="button"
                     onClick={handleSendMessage}
-                    disabled={!draft.trim() || sendMutation.isPending}
+                    disabled={!draft.trim() || sendMutation.isPending || !isOnline}
                     className="btn-primary h-14 min-w-14 rounded-2xl px-4 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {sendMutation.isPending ? (
