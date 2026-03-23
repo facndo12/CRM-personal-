@@ -7,6 +7,8 @@ import type {
   NormalizedInboundMessage,
   OutboundMessageDraft,
   OutboundMessageResult,
+  PhoneRegistrationInput,
+  PhoneRegistrationResult,
 } from './types'
 
 export interface VerifyWebhookResult {
@@ -31,5 +33,7 @@ export interface ChannelProviderAdapter {
   parseDeliveryEvents(input: WebhookEnvelope): Promise<NormalizedDeliveryEvent[]>
   inspectConnection(input: ConnectionInspectionInput): Promise<ConnectionInspectionResult>
   exchangeEmbeddedSignupCode?(input: EmbeddedSignupCodeExchangeInput): Promise<EmbeddedSignupCodeExchangeResult>
+  registerPhoneNumber?(input: PhoneRegistrationInput): Promise<PhoneRegistrationResult>
   sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult>
 }
+

@@ -16,6 +16,7 @@ import type {
   NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
+  PhoneRegistrationResult,
 } from './types'
 
 const inboxDb = db as any
@@ -77,6 +78,14 @@ export interface DeliveryEventResult {
 export interface ConnectionTestResult {
   connection: unknown
   inspection: ConnectionInspectionResult
+}
+
+export interface RegisterWhatsAppPhoneInput {
+  pin: string
+}
+
+export interface RegisterWhatsAppPhoneResult extends ConnectionTestResult {
+  registration: PhoneRegistrationResult
 }
 
 export interface CompleteWhatsAppEmbeddedSignupInput {
@@ -234,6 +243,89 @@ export class InboxService {
         data: {
           status: 'error',
           lastSyncedAt: testedAt,
+        },
+      }).catch(() => {})
+
+      throw error
+    }
+  }
+
+  async registerWhatsAppPhone(
+    workspaceId: string,
+    connectionId: string,
+    input: RegisterWhatsAppPhoneInput
+  ): Promise<RegisterWhatsAppPhoneResult> {
+    const connection = await this.requireConnection(workspaceId, connectionId)
+
+    if (connection.provider !== 'meta' || connection.channel !== 'whatsapp') {
+      throw new ValidationError('El registro con PIN solo aplica a conexiones de Meta WhatsApp')
+    }
+
+    const pin = input.pin?.trim()
+    if (!pin || !/^\d{6}$/.test(pin)) {
+      throw new ValidationError('El PIN de registro debe tener 6 digitos')
+    }
+
+    const adapter = this.requireAdapter(connection.provider)
+    if (!adapter.registerPhoneNumber) {
+      throw new ValidationError('El adapter actual no implementa registro de numero')
+    }
+
+    const attemptedAt = new Date()
+    const currentSettings = this.asJsonRecord(connection.settings) ?? {}
+    const currentRegistration = this.asJsonRecord(currentSettings.registration) ?? {}
+
+    try {
+      const registration = await adapter.registerPhoneNumber({
+        provider: connection.provider,
+        channel: connection.channel,
+        externalAccountId: connection.externalAccountId,
+        pin,
+        credentials: this.asJsonRecord(connection.credentials),
+        settings: currentSettings,
+      })
+
+      const nextRegistration: Record<string, unknown> = {
+        ...currentRegistration,
+        mode: 'cloud_api',
+        phoneNumberId: connection.externalAccountId,
+        lastAttemptAt: attemptedAt.toISOString(),
+        lastRegisteredAt: registration.registeredAt.toISOString(),
+      }
+      delete nextRegistration.lastError
+
+      await inboxDb.channelConnection.update({
+        where: { id: connection.id },
+        data: {
+          settings: {
+            ...currentSettings,
+            registration: nextRegistration,
+          } as Prisma.InputJsonValue,
+          lastSyncedAt: attemptedAt,
+        },
+      })
+
+      const result = await this.testConnection(workspaceId, connection.id)
+      return {
+        ...result,
+        registration,
+      }
+    } catch (error) {
+      await inboxDb.channelConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: 'error',
+          settings: {
+            ...currentSettings,
+            registration: {
+              ...currentRegistration,
+              mode: 'cloud_api',
+              phoneNumberId: connection.externalAccountId,
+              lastAttemptAt: attemptedAt.toISOString(),
+              lastError: this.serializeError(error),
+            },
+          } as Prisma.InputJsonValue,
+          lastSyncedAt: attemptedAt,
         },
       }).catch(() => {})
 

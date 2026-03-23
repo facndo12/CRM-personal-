@@ -16,6 +16,8 @@ import type {
   NormalizedInboundMessage,
   OutboundMessageDraft,
   OutboundMessageResult,
+  PhoneRegistrationInput,
+  PhoneRegistrationResult,
 } from './types'
 
 type PlainObject = Record<string, any>
@@ -118,6 +120,43 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
         qualityRating: this.asString(rawResponse.quality_rating),
         codeVerificationStatus: this.asString(rawResponse.code_verification_status),
         nameStatus: this.asString(rawResponse.name_status),
+      },
+      rawResponse,
+    }
+  }
+
+  async registerPhoneNumber(
+    input: PhoneRegistrationInput
+  ): Promise<PhoneRegistrationResult> {
+    if (input.channel !== 'whatsapp') {
+      throw new ValidationError('Meta solo implementa registro de numero para WhatsApp en este paso')
+    }
+
+    const externalAccountId = this.asString(input.externalAccountId)
+    if (!externalAccountId) {
+      throw new ValidationError('La conexion de WhatsApp no tiene externalAccountId configurado')
+    }
+
+    const pin = this.asString(input.pin)
+    if (!pin || !/^\d{6}$/.test(pin)) {
+      throw new ValidationError('El PIN de registro de WhatsApp debe tener 6 digitos')
+    }
+
+    const accessToken = this.readString(input.credentials, 'accessToken')
+    if (!accessToken) {
+      throw new ValidationError('La conexion de WhatsApp no tiene accessToken configurado')
+    }
+
+    const endpoint = `${this.resolveBaseUrl(input)}/${this.resolveApiVersion(input)}/${externalAccountId}/register`
+    const rawResponse = await this.postJson(endpoint, accessToken, {
+      messaging_product: 'whatsapp',
+      pin,
+    })
+
+    return {
+      registeredAt: new Date(),
+      metadata: {
+        phoneNumberId: externalAccountId,
       },
       rawResponse,
     }

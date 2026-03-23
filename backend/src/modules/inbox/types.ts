@@ -79,6 +79,21 @@ export interface ConnectionInspectionResult {
   rawResponse: unknown
 }
 
+export interface PhoneRegistrationInput {
+  provider: ChannelProvider
+  channel: ChannelKind
+  externalAccountId: string
+  pin: string
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
+
+export interface PhoneRegistrationResult {
+  registeredAt: Date
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
 export interface EmbeddedSignupCodeExchangeInput {
   provider: ChannelProvider
   channel: ChannelKind

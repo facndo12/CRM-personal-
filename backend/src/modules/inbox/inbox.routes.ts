@@ -79,6 +79,10 @@ const sendConversationMessageSchema = z.object({
   }
 })
 
+const registerWhatsAppPhoneSchema = z.object({
+  pin: z.string().regex(/^\d{6}$/, 'El PIN debe tener 6 digitos'),
+})
+
 const completeEmbeddedSignupSchema = z.object({
   phoneNumberId: z.string().min(1).max(120),
   accessToken: z.string().min(1),
@@ -217,6 +221,15 @@ export async function inboxRoutes(
     }, async (req, reply) => {
       const ctx = req.user as { workspaceId: string }
       const result = await service.testConnection(ctx.workspaceId, req.params.id)
+      return reply.send(result)
+    })
+
+    privateApp.post<{ Params: { id: string } }>('/connections/:id/register-phone', {
+      preHandler: requireRole('owner', 'admin'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      const body = registerWhatsAppPhoneSchema.parse(req.body) as Parameters<typeof service.registerWhatsAppPhone>[2]
+      const result = await service.registerWhatsAppPhone(ctx.workspaceId, req.params.id, body)
       return reply.send(result)
     })
 

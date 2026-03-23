@@ -75,6 +75,36 @@ function extractErrorMessage(error: unknown, fallback: string) {
   return typeof message === 'string' && message.trim() ? message : fallback
 }
 
+function readWhatsAppRegistration(settings?: Record<string, unknown>) {
+  const registrationValue = settings?.registration
+  if (!registrationValue || typeof registrationValue !== 'object' || Array.isArray(registrationValue)) {
+    return {
+      lastAttemptAt: undefined,
+      lastRegisteredAt: undefined,
+      errorMessage: undefined,
+    }
+  }
+
+  const registration = registrationValue as {
+    lastAttemptAt?: unknown
+    lastRegisteredAt?: unknown
+    lastError?: unknown
+  }
+
+  const rawError = registration.lastError
+  const errorMessage = rawError && typeof rawError === 'object' && !Array.isArray(rawError)
+    ? typeof (rawError as { message?: unknown }).message === 'string'
+      ? (rawError as { message: string }).message
+      : undefined
+    : undefined
+
+  return {
+    lastAttemptAt: typeof registration.lastAttemptAt === 'string' ? registration.lastAttemptAt : undefined,
+    lastRegisteredAt: typeof registration.lastRegisteredAt === 'string' ? registration.lastRegisteredAt : undefined,
+    errorMessage,
+  }
+}
+
 function ReadinessItem({
   ready,
   title,
@@ -144,6 +174,7 @@ export default function ChannelsPage() {
   const [popupError, setPopupError] = useState<string | null>(null)
   const [lastCompletion, setLastCompletion] = useState<EmbeddedSignupCompletionResult | null>(null)
   const [lastPopupSession, setLastPopupSession] = useState<WhatsAppEmbeddedSignupLaunchResult | null>(null)
+  const [registrationPins, setRegistrationPins] = useState<Record<string, string>>({})
   const [form, setForm] = useState(INITIAL_FORM)
 
   useEffect(() => {
@@ -233,6 +264,18 @@ export default function ChannelsPage() {
     },
   })
 
+  const registerPhoneMutation = useMutation({
+    mutationFn: ({ connectionId, pin }: { connectionId: string; pin: string }) =>
+      inboxApi.registerWhatsAppPhone(connectionId, { pin }),
+    onSuccess: (_, variables) => {
+      setRegistrationPins((current) => ({
+        ...current,
+        [variables.connectionId]: '',
+      }))
+      queryClient.invalidateQueries({ queryKey: ['channels', 'connections'] })
+    },
+  })
+
   function copyText(value: string, key: string) {
     void navigator.clipboard.writeText(value)
     setCopiedKey(key)
@@ -267,6 +310,9 @@ export default function ChannelsPage() {
   const codeExchangeReady = !!configQuery.data?.codeExchangeReady
   const popupReady = embeddedConfigReady && codeExchangeReady
   const hasActiveConnection = whatsappConnections.some((connection) => connection.status === 'connected')
+  const hasRegisteredConnection = whatsappConnections.some(
+    (connection) => !!readWhatsAppRegistration(connection.settings).lastRegisteredAt
+  )
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 animate-fade-in">
@@ -275,7 +321,7 @@ export default function ChannelsPage() {
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary-700">Consola de canales</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">WhatsApp en Meta</h1>
           <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-500">
-            El popup real ya puede cerrar el code exchange si el backend tiene `META_APP_SECRET`. Si no, queda el alta manual como fallback y nada mas.
+            El popup real ya puede cerrar el code exchange si el backend tiene `META_APP_SECRET`. Despues de eso igual falta registrar el numero con PIN en Cloud API. El QR de dispositivo vinculado no es el flujo oficial aca.
           </p>
         </div>
 
@@ -346,6 +392,9 @@ export default function ChannelsPage() {
               </p>
               <p className="mt-1 text-sm font-medium text-emerald-700">
                 {lastCompletion.connection.externalAccountLabel ?? lastCompletion.connection.externalAccountId}
+              </p>
+              <p className="mt-2 text-sm font-medium text-emerald-700/90">
+                La conexion existe y responde. Todavia falta registrar el numero con el PIN de dos pasos para dejar la linea operativa de verdad.
               </p>
               {lastCompletion.exchange && (
                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700/80">
@@ -528,10 +577,17 @@ export default function ChannelsPage() {
             />
             <ReadinessItem
               ready={hasActiveConnection}
-              title="Linea operativa"
+              title="Linea validada"
               description={hasActiveConnection
                 ? 'Ya hay al menos una conexion validada en estado connected.'
                 : 'Todavia no hay ninguna linea de WhatsApp validada y usable desde el CRM.'}
+            />
+            <ReadinessItem
+              ready={hasRegisteredConnection}
+              title="Numero registrado"
+              description={hasRegisteredConnection
+                ? 'Ya hay al menos una linea registrada con PIN en Cloud API.'
+                : 'Todavia falta registrar el numero con el PIN de dos pasos. Sin eso, el onboarding queda incompleto.'}
             />
           </div>
 
@@ -609,6 +665,12 @@ export default function ChannelsPage() {
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {whatsappConnections.map((connection) => {
               const isTesting = testMutation.isPending && testMutation.variables === connection.id
+              const registration = readWhatsAppRegistration(connection.settings)
+              const registrationPin = registrationPins[connection.id] ?? ''
+              const isRegistering = registerPhoneMutation.isPending && registerPhoneMutation.variables?.connectionId === connection.id
+              const registrationError = registerPhoneMutation.isError && registerPhoneMutation.variables?.connectionId === connection.id
+                ? extractErrorMessage(registerPhoneMutation.error, 'No se pudo registrar el numero en Cloud API')
+                : registration.errorMessage
 
               return (
                 <article
@@ -662,10 +724,81 @@ export default function ChannelsPage() {
                         <KeyRound size={12} />
                         {connection.hasCredentials ? 'Con credenciales' : 'Sin credenciales'}
                       </span>
+                      <span className={clsx(
+                        'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]',
+                        registration.lastRegisteredAt
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700'
+                      )}>
+                        <ShieldCheck size={12} />
+                        {registration.lastRegisteredAt ? 'Registrado en Cloud API' : 'Pendiente de registro'}
+                      </span>
                       <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                         <Webhook size={12} />
                         meta / whatsapp
                       </span>
+                    </div>
+
+                    <div className="mt-5 rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Registro oficial</p>
+                          <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600">
+                            {registration.lastRegisteredAt
+                              ? 'Registrado el ' + formatDate(registration.lastRegisteredAt) + '.'
+                              : 'Todavia falta registrar el numero con el PIN de dos pasos. Sin eso, esta linea no queda lista de verdad para envio.'}
+                          </p>
+                        </div>
+                        <span className={clsx(
+                          'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]',
+                          registration.lastRegisteredAt
+                            ? 'border-emerald-200 bg-white text-emerald-700'
+                            : 'border-amber-200 bg-white text-amber-700'
+                        )}>
+                          <ShieldCheck size={12} />
+                          {registration.lastRegisteredAt ? 'Registrado' : 'Pendiente'}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
+                        <label className="flex-1 text-sm font-semibold text-slate-700">
+                          PIN de dos pasos
+                          <input
+                            value={registrationPin}
+                            onChange={(event) => setRegistrationPins((current) => ({
+                              ...current,
+                              [connection.id]: event.target.value.replace(/\D/g, '').slice(0, 6),
+                            }))}
+                            inputMode="numeric"
+                            placeholder="123456"
+                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                          />
+                        </label>
+                        <button
+                          onClick={() => registerPhoneMutation.mutate({ connectionId: connection.id, pin: registrationPin })}
+                          disabled={!/^\d{6}$/.test(registrationPin) || isRegistering}
+                          className="btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isRegistering ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                          {registration.lastRegisteredAt ? 'Registrar otra vez' : 'Registrar numero'}
+                        </button>
+                      </div>
+
+                      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Este es el paso oficial de Cloud API. No es vinculacion por QR.
+                      </p>
+
+                      {!registration.lastRegisteredAt && registration.lastAttemptAt && (
+                        <p className="mt-2 text-xs font-medium text-slate-500">
+                          Ultimo intento: {formatDate(registration.lastAttemptAt)}
+                        </p>
+                      )}
+
+                      {registrationError && (
+                        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-sm font-medium text-rose-700">
+                          {registrationError}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-5 flex justify-end">

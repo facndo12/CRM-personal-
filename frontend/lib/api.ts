@@ -3,6 +3,7 @@ import { auth } from './auth'
 import type {
   Contact, Deal, Webhook,
   Pipeline, Stage, InboxConnection, EmbeddedSignupConfig, InboxConversation, InboxMessage, PaginatedResult,
+  RegisterWhatsAppPhoneResult,
 } from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
@@ -236,6 +237,9 @@ export const inboxApi = {
 
   testConnection: (id: string) =>
     api.post(`/inbox/connections/${id}/test`),
+
+  registerWhatsAppPhone: (id: string, data: { pin: string }) =>
+    api.post<RegisterWhatsAppPhoneResult>(`/inbox/connections/${id}/register-phone`, data),
 
   getEmbeddedSignupConfig: () =>
     api.get<EmbeddedSignupConfig>('/inbox/meta/whatsapp/embedded-signup/config'),

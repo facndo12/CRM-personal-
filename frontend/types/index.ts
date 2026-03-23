@@ -371,6 +371,16 @@ export interface ConnectionTestResult {
   inspection: ConnectionInspection
 }
 
+export interface WhatsAppPhoneRegistration {
+  registeredAt: string
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
+export interface RegisterWhatsAppPhoneResult extends ConnectionTestResult {
+  registration: WhatsAppPhoneRegistration
+}
+
 export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
   mode: 'created' | 'updated'
   exchange?: {
