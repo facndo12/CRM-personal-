@@ -11,6 +11,7 @@ import {
 } from '../../types'
 import type { ChannelProviderAdapter } from './provider'
 import type {
+  ConnectionInspectionResult,
   NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
@@ -63,6 +64,11 @@ export interface DeliveryEventResult {
   workspaceId?: string
   conversationId?: string
   messageId?: string
+}
+
+export interface ConnectionTestResult {
+  connection: unknown
+  inspection: ConnectionInspectionResult
 }
 
 export class InboxService {
@@ -148,6 +154,49 @@ export class InboxService {
     await inboxDb.channelConnection.delete({
       where: { id: connectionId },
     })
+  }
+
+  async testConnection(
+    workspaceId: string,
+    connectionId: string
+  ): Promise<ConnectionTestResult> {
+    const connection = await this.requireConnection(workspaceId, connectionId)
+    const adapter = this.requireAdapter(connection.provider)
+    const testedAt = new Date()
+
+    try {
+      const inspection = await adapter.inspectConnection({
+        provider: connection.provider,
+        channel: connection.channel,
+        externalAccountId: connection.externalAccountId,
+        credentials: this.asJsonRecord(connection.credentials),
+        settings: this.asJsonRecord(connection.settings),
+      })
+
+      const updatedConnection = await inboxDb.channelConnection.update({
+        where: { id: connectionId },
+        data: {
+          status: inspection.status,
+          externalAccountLabel: inspection.externalAccountLabel ?? connection.externalAccountLabel,
+          lastSyncedAt: testedAt,
+        },
+      })
+
+      return {
+        connection: this.sanitizeConnection(updatedConnection),
+        inspection,
+      }
+    } catch (error) {
+      await inboxDb.channelConnection.update({
+        where: { id: connectionId },
+        data: {
+          status: 'error',
+          lastSyncedAt: testedAt,
+        },
+      }).catch(() => {})
+
+      throw error
+    }
   }
 
   async sendConversationMessage(

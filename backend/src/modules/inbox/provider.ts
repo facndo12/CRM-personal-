@@ -1,4 +1,6 @@
 import type {
+  ConnectionInspectionInput,
+  ConnectionInspectionResult,
   NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
@@ -25,5 +27,6 @@ export interface ChannelProviderAdapter {
   verifyWebhook(input: WebhookEnvelope): Promise<VerifyWebhookResult>
   parseInbound(input: WebhookEnvelope): Promise<NormalizedInboundMessage[]>
   parseDeliveryEvents(input: WebhookEnvelope): Promise<NormalizedDeliveryEvent[]>
+  inspectConnection(input: ConnectionInspectionInput): Promise<ConnectionInspectionResult>
   sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult>
 }

@@ -148,6 +148,14 @@ export async function inboxRoutes(
       return reply.send(connection)
     })
 
+    privateApp.post<{ Params: { id: string } }>('/connections/:id/test', {
+      preHandler: requireRole('owner', 'admin'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      const result = await service.testConnection(ctx.workspaceId, req.params.id)
+      return reply.send(result)
+    })
+
     privateApp.delete<{ Params: { id: string } }>('/connections/:id', {
       preHandler: requireRole('owner', 'admin'),
     }, async (req, reply) => {

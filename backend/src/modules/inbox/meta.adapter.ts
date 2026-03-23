@@ -5,6 +5,8 @@ import type {
   WebhookEnvelope,
 } from './provider'
 import type {
+  ConnectionInspectionInput,
+  ConnectionInspectionResult,
   DeliveryStatus,
   MessageKind,
   NormalizedAttachment,
@@ -16,6 +18,10 @@ import type {
 
 type PlainObject = Record<string, any>
 type JsonRecord = Record<string, unknown>
+type ProviderRequestInput = {
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
 
 export class MetaWebhookAdapter implements ChannelProviderAdapter {
   readonly provider = 'meta'
@@ -67,6 +73,52 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
 
     return []
+  }
+
+  async inspectConnection(input: ConnectionInspectionInput): Promise<ConnectionInspectionResult> {
+    if (input.channel !== 'whatsapp') {
+      throw new ValidationError('Meta solo implementa prueba de conexion para WhatsApp en este paso')
+    }
+
+    const externalAccountId = this.asString(input.externalAccountId)
+    if (!externalAccountId) {
+      throw new ValidationError('La conexion de WhatsApp no tiene externalAccountId configurado')
+    }
+
+    const accessToken = this.readString(input.credentials, 'accessToken')
+    if (!accessToken) {
+      throw new ValidationError('La conexion de WhatsApp no tiene accessToken configurado')
+    }
+
+    const fields = [
+      'id',
+      'display_phone_number',
+      'verified_name',
+      'quality_rating',
+      'code_verification_status',
+      'name_status',
+    ]
+
+    const query = new URLSearchParams({
+      fields: fields.join(','),
+    })
+
+    const endpoint = `${this.resolveBaseUrl(input)}/${this.resolveApiVersion(input)}/${externalAccountId}?${query.toString()}`
+    const rawResponse = await this.getJson(endpoint, accessToken)
+
+    return {
+      status: 'connected',
+      externalAccountLabel: this.buildWhatsAppConnectionLabel(rawResponse),
+      metadata: {
+        phoneNumberId: this.asString(rawResponse.id) ?? externalAccountId,
+        displayPhoneNumber: this.asString(rawResponse.display_phone_number),
+        verifiedName: this.asString(rawResponse.verified_name),
+        qualityRating: this.asString(rawResponse.quality_rating),
+        codeVerificationStatus: this.asString(rawResponse.code_verification_status),
+        nameStatus: this.asString(rawResponse.name_status),
+      },
+      rawResponse,
+    }
   }
 
   async sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult> {
@@ -134,10 +186,23 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
   }
 
+  private async getJson(url: string, accessToken: string): Promise<PlainObject> {
+    return this.requestJson('GET', url, accessToken)
+  }
+
   private async postJson(
     url: string,
     accessToken: string,
     payload: PlainObject
+  ): Promise<PlainObject> {
+    return this.requestJson('POST', url, accessToken, payload)
+  }
+
+  private async requestJson(
+    method: 'GET' | 'POST',
+    url: string,
+    accessToken: string,
+    payload?: PlainObject
   ): Promise<PlainObject> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15_000)
@@ -145,17 +210,17 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     let response: Response
     try {
       response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        ...(payload && { body: JSON.stringify(payload) }),
         signal: controller.signal,
       })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Meta no respondio a tiempo al enviar el mensaje')
+        throw new Error('Meta no respondio a tiempo')
       }
 
       throw error
@@ -199,13 +264,13 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     )
   }
 
-  private resolveApiVersion(input: OutboundMessageDraft): string {
+  private resolveApiVersion(input: ProviderRequestInput): string {
     return this.readString(input.settings, 'apiVersion')
       ?? this.readString(input.credentials, 'apiVersion')
       ?? MetaWebhookAdapter.DEFAULT_API_VERSION
   }
 
-  private resolveBaseUrl(input: OutboundMessageDraft): string {
+  private resolveBaseUrl(input: ProviderRequestInput): string {
     const configuredBaseUrl = this.readString(input.settings, 'baseUrl')
       ?? this.readString(input.credentials, 'baseUrl')
 
@@ -357,6 +422,17 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
 
     return messages
+  }
+
+  private buildWhatsAppConnectionLabel(payload: PlainObject): string | undefined {
+    const verifiedName = this.asString(payload.verified_name)
+    const displayPhoneNumber = this.asString(payload.display_phone_number)
+
+    if (verifiedName && displayPhoneNumber) {
+      return `${verifiedName} (${displayPhoneNumber})`
+    }
+
+    return verifiedName ?? displayPhoneNumber
   }
 
   private extractWhatsAppText(message: PlainObject): string | undefined {

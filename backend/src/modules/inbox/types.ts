@@ -64,6 +64,21 @@ export interface NormalizedDeliveryEvent {
   metadata?: Record<string, unknown>
 }
 
+export interface ConnectionInspectionInput {
+  provider: ChannelProvider
+  channel: ChannelKind
+  externalAccountId: string
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
+
+export interface ConnectionInspectionResult {
+  status: 'connected'
+  externalAccountLabel?: string
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
 export interface OutboundMessageDraft {
   provider: ChannelProvider
   channel: ChannelKind
