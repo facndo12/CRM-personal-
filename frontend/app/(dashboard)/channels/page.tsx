@@ -19,6 +19,10 @@ import {
 
 import { auth } from '@/lib/auth'
 import { inboxApi } from '@/lib/api'
+import {
+  launchWhatsAppEmbeddedSignup,
+  type WhatsAppEmbeddedSignupLaunchResult,
+} from '@/lib/meta-embedded-signup'
 import type {
   EmbeddedSignupCompletionResult,
   EmbeddedSignupConfig,
@@ -45,6 +49,30 @@ function maskValue(value?: string | null) {
 function formatDate(value?: string | null) {
   if (!value) return 'Aun sin sincronizar'
   return new Date(value).toLocaleString('es-AR')
+}
+
+function extractErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== 'object') return fallback
+
+  const message = (error as {
+    message?: unknown
+    response?: {
+      data?: {
+        message?: unknown
+        error?: unknown
+      }
+    }
+  }).response?.data?.message
+    ?? (error as {
+      response?: {
+        data?: {
+          error?: unknown
+        }
+      }
+    }).response?.data?.error
+    ?? (error as { message?: unknown }).message
+
+  return typeof message === 'string' && message.trim() ? message : fallback
 }
 
 function ReadinessItem({
@@ -113,7 +141,9 @@ export default function ChannelsPage() {
   const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
   const [showForm, setShowForm] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [popupError, setPopupError] = useState<string | null>(null)
   const [lastCompletion, setLastCompletion] = useState<EmbeddedSignupCompletionResult | null>(null)
+  const [lastPopupSession, setLastPopupSession] = useState<WhatsAppEmbeddedSignupLaunchResult | null>(null)
   const [form, setForm] = useState(INITIAL_FORM)
 
   useEffect(() => {
@@ -146,10 +176,53 @@ export default function ChannelsPage() {
       qualityRating: form.qualityRating || undefined,
     }),
     onSuccess: (response) => {
+      setPopupError(null)
+      setLastPopupSession(null)
       setLastCompletion(response.data)
       setShowForm(false)
       setForm(INITIAL_FORM)
       queryClient.invalidateQueries({ queryKey: ['channels', 'connections'] })
+    },
+  })
+
+  const popupMutation = useMutation({
+    mutationFn: async () => {
+      const config = configQuery.data
+      if (!config?.enabled || !config.appId || !config.configurationId) {
+        throw new Error('Falta la configuracion publica de Embedded Signup en backend')
+      }
+
+      if (!config.codeExchangeReady) {
+        throw new Error('Falta META_APP_SECRET en backend. El popup real no puede cerrar el code exchange.')
+      }
+
+      const session = await launchWhatsAppEmbeddedSignup({
+        appId: config.appId,
+        configurationId: config.configurationId,
+      })
+
+      const completionResponse = await inboxApi.completeEmbeddedSignupFromCode({
+        code: session.code,
+        phoneNumberId: session.phoneNumberId,
+        wabaId: session.wabaId,
+        businessId: session.businessId,
+      })
+
+      return {
+        session,
+        completion: completionResponse.data,
+      }
+    },
+    onSuccess: ({ session, completion }) => {
+      setPopupError(null)
+      setLastPopupSession(session)
+      setLastCompletion(completion)
+      setShowForm(false)
+      setForm(INITIAL_FORM)
+      queryClient.invalidateQueries({ queryKey: ['channels', 'connections'] })
+    },
+    onError: (error) => {
+      setPopupError(extractErrorMessage(error, 'No se pudo cerrar el popup de Meta'))
     },
   })
 
@@ -161,9 +234,9 @@ export default function ChannelsPage() {
   })
 
   function copyText(value: string, key: string) {
-    navigator.clipboard.writeText(value)
+    void navigator.clipboard.writeText(value)
     setCopiedKey(key)
-    setTimeout(() => setCopiedKey(null), 1500)
+    window.setTimeout(() => setCopiedKey(null), 1500)
   }
 
   if (!canManage) {
@@ -171,7 +244,7 @@ export default function ChannelsPage() {
       <div className="mx-auto max-w-4xl p-6 animate-fade-in">
         <div className="interactive-card p-8">
           <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600">
               <ShieldCheck size={24} />
             </div>
             <div>
@@ -191,25 +264,46 @@ export default function ChannelsPage() {
   )
 
   const embeddedConfigReady = !!configQuery.data?.enabled
+  const codeExchangeReady = !!configQuery.data?.codeExchangeReady
+  const popupReady = embeddedConfigReady && codeExchangeReady
   const hasActiveConnection = whatsappConnections.some((connection) => connection.status === 'connected')
 
   return (
-    <div className="mx-auto max-w-7xl p-6 animate-fade-in space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-6 animate-fade-in">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary-700">Consola de canales</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">WhatsApp en Meta</h1>
           <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-500">
-            Conecta numeros de WhatsApp, valida credenciales y deja visible que parte del onboarding ya esta resuelta y que sigue bloqueado.
+            El popup real ya puede cerrar el code exchange si el backend tiene `META_APP_SECRET`. Si no, queda el alta manual como fallback y nada mas.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((current) => !current)}
-          className="btn-primary"
-        >
-          <PlugZap size={18} strokeWidth={2.4} />
-          {showForm ? 'Ocultar alta manual' : 'Registrar conexion'}
-        </button>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => {
+              setPopupError(null)
+              popupMutation.mutate()
+            }}
+            disabled={popupMutation.isPending || configQuery.isLoading || !popupReady}
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {popupMutation.isPending ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <MessageSquare size={18} strokeWidth={2.4} />
+            )}
+            {popupReady ? 'Abrir popup de Meta' : 'Popup no listo'}
+          </button>
+
+          <button
+            onClick={() => setShowForm((current) => !current)}
+            className="btn-secondary"
+          >
+            <PlugZap size={18} strokeWidth={2.4} />
+            {showForm ? 'Ocultar alta manual' : 'Usar fallback manual'}
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
@@ -222,11 +316,27 @@ export default function ChannelsPage() {
               <div>
                 <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Alta operativa</h2>
                 <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">
-                  Esta pantalla ya usa el backend nuevo. Hoy el cierre del onboarding se hace cargando el payload que te devuelve Meta: `accessToken` y `phoneNumberId` son obligatorios.
+                  El camino sano es popup + code exchange. El formulario manual sigue aca para destrabarte si la app de Meta o el backend todavia no estan listos.
                 </p>
               </div>
             </div>
             <StatusBadge status={hasActiveConnection ? 'connected' : 'disconnected'} />
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <span className={clsx(
+              'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]',
+              popupReady
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+            )}>
+              <CheckCircle2 size={12} />
+              {popupReady ? 'Popup utilizable' : 'Falta config segura'}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+              <Webhook size={12} />
+              Meta / WhatsApp
+            </span>
           </div>
 
           {lastCompletion && (
@@ -237,6 +347,40 @@ export default function ChannelsPage() {
               <p className="mt-1 text-sm font-medium text-emerald-700">
                 {lastCompletion.connection.externalAccountLabel ?? lastCompletion.connection.externalAccountId}
               </p>
+              {lastCompletion.exchange && (
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700/80">
+                  code exchange: {lastCompletion.exchange.tokenType ?? 'token listo'}
+                  {typeof lastCompletion.exchange.expiresIn === 'number' ? ` / ${lastCompletion.exchange.expiresIn}s` : ''}
+                </p>
+              )}
+            </div>
+          )}
+
+          {lastPopupSession && (
+            <div className="mt-5 rounded-2xl border border-primary-200 bg-primary-50/80 p-4 animate-slide-up">
+              <p className="text-sm font-bold text-primary-800">Ultimo popup cerrado</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-primary-200 bg-white px-3 py-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-500">Phone Number ID</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">{lastPopupSession.phoneNumberId}</p>
+                </div>
+                <div className="rounded-xl border border-primary-200 bg-white px-3 py-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-500">WABA ID</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">{lastPopupSession.wabaId ?? 'No devuelto por Meta'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {popupError && (
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm font-medium text-rose-700">
+              {popupError}
+            </div>
+          )}
+
+          {completeMutation.isError && (
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm font-medium text-rose-700">
+              {extractErrorMessage(completeMutation.error, 'No se pudo completar el onboarding manual')}
             </div>
           )}
 
@@ -346,16 +490,10 @@ export default function ChannelsPage() {
                     ) : (
                       <PlugZap size={16} strokeWidth={2.4} />
                     )}
-                    Completar onboarding
+                    Completar onboarding manual
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {completeMutation.isError && (
-            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm font-medium text-rose-700">
-              {(completeMutation.error as Error).message || 'No se pudo completar el onboarding'}
             </div>
           )}
         </section>
@@ -368,7 +506,7 @@ export default function ChannelsPage() {
             <div>
               <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Readiness</h2>
               <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
-                Esta columna te dice si ya podes lanzar el popup embebido o si seguis en modo completion manual.
+                Esta columna te dice si ya podes abrir el popup real o si seguis atado al fallback manual.
               </p>
             </div>
           </div>
@@ -378,8 +516,15 @@ export default function ChannelsPage() {
               ready={embeddedConfigReady}
               title="Config del popup"
               description={embeddedConfigReady
-                ? 'El backend ya publica META_APP_ID y META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID para la futura UI del popup.'
-                : 'Faltan META_APP_ID o META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID. La completion manual sigue funcionando igual.'}
+                ? 'El backend ya publica META_APP_ID y META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID.'
+                : 'Faltan META_APP_ID o META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID. Sin eso no hay popup.'}
+            />
+            <ReadinessItem
+              ready={codeExchangeReady}
+              title="Exchange seguro"
+              description={codeExchangeReady
+                ? 'El backend tiene META_APP_SECRET y puede cambiar el code por token sin exponer secretos en la UI.'
+                : 'Falta META_APP_SECRET. El popup puede abrir, pero no cerrar el code exchange de forma sana.'}
             />
             <ReadinessItem
               ready={hasActiveConnection}
@@ -400,7 +545,7 @@ export default function ChannelsPage() {
                 </div>
                 {configQuery.data?.appId && (
                   <button
-                    onClick={() => copyText(configQuery.data!.appId!, 'app-id')}
+                    onClick={() => copyText(configQuery.data.appId!, 'app-id')}
                     className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-500 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
                   >
                     {copiedKey === 'app-id' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
@@ -415,7 +560,7 @@ export default function ChannelsPage() {
                 </div>
                 {configQuery.data?.configurationId && (
                   <button
-                    onClick={() => copyText(configQuery.data!.configurationId!, 'config-id')}
+                    onClick={() => copyText(configQuery.data.configurationId!, 'config-id')}
                     className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-500 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
                   >
                     {copiedKey === 'config-id' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
@@ -426,9 +571,9 @@ export default function ChannelsPage() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Siguiente salto</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Honestidad tecnica</p>
             <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600">
-              Cuando quieras cerrar el loop completo, el paso que falta es abrir el popup real de Meta desde esta misma pantalla y mandar el payload directo al endpoint `/embedded-signup/complete`.
+              El `appSecret` nunca sale del backend. Si falta, no te voy a dibujar un popup milagroso: te dejo el fallback manual y listo.
             </p>
           </div>
         </aside>
@@ -457,7 +602,7 @@ export default function ChannelsPage() {
             </div>
             <h3 className="mt-4 text-lg font-bold tracking-tight text-slate-900">Todavia no hay lineas conectadas</h3>
             <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
-              Registra la primera conexion desde el bloque superior. El backend ya valida la linea apenas cerras el onboarding.
+              Usa el popup si esta listo. Si no, registra la linea manualmente y valida con `testConnection()`.
             </p>
           </div>
         ) : (

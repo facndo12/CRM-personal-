@@ -82,8 +82,27 @@ export interface CompleteWhatsAppEmbeddedSignupInput {
   name?: string
 }
 
+export interface CompleteWhatsAppEmbeddedSignupCodeInput {
+  code: string
+  phoneNumberId: string
+  businessId?: string
+  wabaId?: string
+  displayPhoneNumber?: string
+  verifiedName?: string
+  qualityRating?: string
+  name?: string
+  redirectUri?: string
+}
+
 export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
   mode: 'created' | 'updated'
+}
+
+export interface EmbeddedSignupCodeCompletionResult extends EmbeddedSignupCompletionResult {
+  exchange: {
+    tokenType?: string
+    expiresIn?: number
+  }
 }
 
 export class InboxService {
@@ -287,6 +306,58 @@ export class InboxService {
     return {
       mode: existing ? 'updated' : 'created',
       ...result,
+    }
+  }
+
+
+  async completeWhatsAppEmbeddedSignupFromCode(
+    workspaceId: string,
+    input: CompleteWhatsAppEmbeddedSignupCodeInput,
+    metaAuth: { appId?: string; appSecret?: string }
+  ): Promise<EmbeddedSignupCodeCompletionResult> {
+    const code = input.code?.trim()
+    const appId = metaAuth.appId?.trim()
+    const appSecret = metaAuth.appSecret?.trim()
+
+    if (!code) {
+      throw new ValidationError('code es obligatorio para completar Embedded Signup via popup')
+    }
+
+    if (!appId || !appSecret) {
+      throw new ValidationError('Faltan META_APP_ID o META_APP_SECRET para completar Embedded Signup via popup')
+    }
+
+    const adapter = this.requireAdapter('meta')
+    if (!adapter.exchangeEmbeddedSignupCode) {
+      throw new ValidationError('El adapter de Meta no implementa code exchange de Embedded Signup')
+    }
+
+    const exchange = await adapter.exchangeEmbeddedSignupCode({
+      provider: 'meta',
+      channel: 'whatsapp',
+      appId,
+      appSecret,
+      code,
+      redirectUri: input.redirectUri?.trim() || undefined,
+    })
+
+    const completion = await this.completeWhatsAppEmbeddedSignup(workspaceId, {
+      phoneNumberId: input.phoneNumberId,
+      accessToken: exchange.accessToken,
+      businessId: input.businessId,
+      wabaId: input.wabaId,
+      displayPhoneNumber: input.displayPhoneNumber,
+      verifiedName: input.verifiedName,
+      qualityRating: input.qualityRating,
+      name: input.name,
+    })
+
+    return {
+      ...completion,
+      exchange: {
+        tokenType: exchange.tokenType,
+        expiresIn: exchange.expiresIn,
+      },
     }
   }
 

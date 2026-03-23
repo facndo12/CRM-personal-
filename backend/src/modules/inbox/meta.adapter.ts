@@ -8,6 +8,8 @@ import type {
   ConnectionInspectionInput,
   ConnectionInspectionResult,
   DeliveryStatus,
+  EmbeddedSignupCodeExchangeInput,
+  EmbeddedSignupCodeExchangeResult,
   MessageKind,
   NormalizedAttachment,
   NormalizedDeliveryEvent,
@@ -121,6 +123,51 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
   }
 
+  async exchangeEmbeddedSignupCode(
+    input: EmbeddedSignupCodeExchangeInput
+  ): Promise<EmbeddedSignupCodeExchangeResult> {
+    if (input.channel !== 'whatsapp') {
+      throw new ValidationError('Meta solo implementa code exchange para WhatsApp en este paso')
+    }
+
+    const appId = this.asString(input.appId)
+    const appSecret = this.asString(input.appSecret)
+    const code = this.asString(input.code)
+
+    if (!appId || !appSecret) {
+      throw new ValidationError('Faltan META_APP_ID o META_APP_SECRET para completar el code exchange')
+    }
+
+    if (!code) {
+      throw new ValidationError('El code de Embedded Signup es obligatorio')
+    }
+
+    const query = new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      code,
+    })
+
+    const redirectUri = this.asString(input.redirectUri)
+    if (redirectUri) {
+      query.set('redirect_uri', redirectUri)
+    }
+
+    const endpoint = `${this.resolveBaseUrl(input)}/${this.resolveApiVersion(input)}/oauth/access_token?${query.toString()}`
+    const rawResponse = await this.requestPublicJson('GET', endpoint)
+    const accessToken = this.asString(rawResponse.access_token)
+
+    if (!accessToken) {
+      throw new Error('Meta no devolvio access_token al intercambiar el code')
+    }
+
+    return {
+      accessToken,
+      tokenType: this.asString(rawResponse.token_type),
+      expiresIn: this.asNumber(rawResponse.expires_in),
+      rawResponse,
+    }
+  }
   async sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult> {
     if (input.channel !== 'whatsapp') {
       throw new ValidationError('Meta solo implementa envio saliente para WhatsApp en este paso')
@@ -198,10 +245,27 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     return this.requestJson('POST', url, accessToken, payload)
   }
 
+  private async requestPublicJson(
+    method: 'GET' | 'POST',
+    url: string,
+    payload?: PlainObject
+  ): Promise<PlainObject> {
+    return this.requestJsonCore(method, url, undefined, payload)
+  }
+
   private async requestJson(
     method: 'GET' | 'POST',
     url: string,
     accessToken: string,
+    payload?: PlainObject
+  ): Promise<PlainObject> {
+    return this.requestJsonCore(method, url, accessToken, payload)
+  }
+
+  private async requestJsonCore(
+    method: 'GET' | 'POST',
+    url: string,
+    accessToken?: string,
     payload?: PlainObject
   ): Promise<PlainObject> {
     const controller = new AbortController()
@@ -212,7 +276,7 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
       response = await fetch(url, {
         method,
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
           'Content-Type': 'application/json',
         },
         ...(payload && { body: JSON.stringify(payload) }),
@@ -260,6 +324,7 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     return this.asString(
       body.error?.error_user_msg
       ?? body.error?.message
+      ?? body.error_description
       ?? body.message
     )
   }
@@ -595,6 +660,12 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
   private asNumberString(value: unknown): string | undefined {
     return typeof value === 'number' && Number.isFinite(value)
       ? String(value)
+      : undefined
+  }
+
+  private asNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
       : undefined
   }
 

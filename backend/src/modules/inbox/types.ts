@@ -79,6 +79,23 @@ export interface ConnectionInspectionResult {
   rawResponse: unknown
 }
 
+export interface EmbeddedSignupCodeExchangeInput {
+  provider: ChannelProvider
+  channel: ChannelKind
+  appId: string
+  appSecret: string
+  code: string
+  redirectUri?: string
+  settings?: Record<string, unknown>
+}
+
+export interface EmbeddedSignupCodeExchangeResult {
+  accessToken: string
+  tokenType?: string
+  expiresIn?: number
+  rawResponse: unknown
+}
+
 export interface OutboundMessageDraft {
   provider: ChannelProvider
   channel: ChannelKind

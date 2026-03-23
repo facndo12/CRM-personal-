@@ -1,6 +1,8 @@
 import type {
   ConnectionInspectionInput,
   ConnectionInspectionResult,
+  EmbeddedSignupCodeExchangeInput,
+  EmbeddedSignupCodeExchangeResult,
   NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
@@ -28,5 +30,6 @@ export interface ChannelProviderAdapter {
   parseInbound(input: WebhookEnvelope): Promise<NormalizedInboundMessage[]>
   parseDeliveryEvents(input: WebhookEnvelope): Promise<NormalizedDeliveryEvent[]>
   inspectConnection(input: ConnectionInspectionInput): Promise<ConnectionInspectionResult>
+  exchangeEmbeddedSignupCode?(input: EmbeddedSignupCodeExchangeInput): Promise<EmbeddedSignupCodeExchangeResult>
   sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult>
 }

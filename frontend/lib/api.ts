@@ -229,4 +229,16 @@ export const inboxApi = {
     qualityRating?: string
     name?: string
   }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete', data),
+
+  completeEmbeddedSignupFromCode: (data: {
+    code: string
+    phoneNumberId: string
+    businessId?: string
+    wabaId?: string
+    displayPhoneNumber?: string
+    verifiedName?: string
+    qualityRating?: string
+    name?: string
+    redirectUri?: string
+  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete-from-code', data),
 }

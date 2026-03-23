@@ -10,6 +10,7 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().default('http://localhost:3001'),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
   META_APP_ID: z.string().min(1).optional(),
+  META_APP_SECRET: z.string().min(1).optional(),
   META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: z.string().min(1).optional(),
 })
 

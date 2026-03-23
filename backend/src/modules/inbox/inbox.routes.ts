@@ -65,6 +65,18 @@ const completeEmbeddedSignupSchema = z.object({
   name: z.string().min(1).max(100).optional(),
 })
 
+const completeEmbeddedSignupFromCodeSchema = z.object({
+  code: z.string().min(1),
+  phoneNumberId: z.string().min(1).max(120),
+  businessId: z.string().min(1).max(120).optional(),
+  wabaId: z.string().min(1).max(120).optional(),
+  displayPhoneNumber: z.string().min(1).max(60).optional(),
+  verifiedName: z.string().min(1).max(120).optional(),
+  qualityRating: z.string().min(1).max(40).optional(),
+  name: z.string().min(1).max(100).optional(),
+  redirectUri: z.string().url().optional(),
+})
+
 export async function inboxRoutes(
   app: FastifyInstance,
   options: { eventBus: EventBus }
@@ -137,9 +149,11 @@ export async function inboxRoutes(
       preHandler: requireRole('owner', 'admin'),
     }, async (_, reply) => {
       const enabled = !!(config.META_APP_ID && config.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID)
+      const codeExchangeReady = !!(config.META_APP_ID && config.META_APP_SECRET && config.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID)
 
       return reply.send({
         enabled,
+        codeExchangeReady,
         appId: config.META_APP_ID,
         configurationId: config.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID,
         provider: 'meta',
@@ -187,6 +201,17 @@ export async function inboxRoutes(
       const ctx = req.user as { workspaceId: string }
       const body = completeEmbeddedSignupSchema.parse(req.body) as Parameters<typeof service.completeWhatsAppEmbeddedSignup>[1]
       const result = await service.completeWhatsAppEmbeddedSignup(ctx.workspaceId, body)
+      return reply.status(201).send(result)
+    })
+    privateApp.post('/meta/whatsapp/embedded-signup/complete-from-code', {
+      preHandler: requireRole('owner', 'admin'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      const body = completeEmbeddedSignupFromCodeSchema.parse(req.body) as Parameters<typeof service.completeWhatsAppEmbeddedSignupFromCode>[1]
+      const result = await service.completeWhatsAppEmbeddedSignupFromCode(ctx.workspaceId, body, {
+        appId: config.META_APP_ID,
+        appSecret: config.META_APP_SECRET,
+      })
       return reply.status(201).send(result)
     })
 

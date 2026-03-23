@@ -246,6 +246,7 @@ export interface InboxConnection {
 
 export interface EmbeddedSignupConfig {
   enabled: boolean
+  codeExchangeReady: boolean
   appId?: string
   configurationId?: string
   provider: 'meta'
@@ -266,4 +267,8 @@ export interface ConnectionTestResult {
 
 export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
   mode: 'created' | 'updated'
+  exchange?: {
+    tokenType?: string
+    expiresIn?: number
+  }
 }
