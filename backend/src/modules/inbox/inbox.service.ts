@@ -1,10 +1,36 @@
 import { Prisma } from '@prisma/client'
 import { db } from '../../core/database'
 import { EventBus } from '../../core/event-bus'
-import { NotFoundError, paginate, type PaginatedResult, type PaginationQuery } from '../../types'
+import {
+  ConflictError,
+  NotFoundError,
+  paginate,
+  type PaginatedResult,
+  type PaginationQuery,
+} from '../../types'
 import type { NormalizedInboundMessage } from './types'
 
 const inboxDb = db as any
+
+export interface ChannelConnectionInput {
+  provider: 'meta' | 'tiktok'
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+  name: string
+  status?: 'disconnected' | 'connected' | 'error'
+  externalAccountId: string
+  externalAccountLabel?: string
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
+
+export interface ChannelConnectionUpdateInput {
+  name?: string
+  status?: 'disconnected' | 'connected' | 'error'
+  externalAccountLabel?: string | null
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
+  lastSyncedAt?: Date | null
+}
 
 export interface ConversationFilters extends PaginationQuery {
   channel?: string
@@ -21,6 +47,85 @@ export interface IngestResult {
 
 export class InboxService {
   constructor(private readonly eventBus: EventBus) {}
+
+  async listConnections(workspaceId: string): Promise<unknown[]> {
+    const connections = await inboxDb.channelConnection.findMany({
+      where: { workspaceId },
+      orderBy: [
+        { channel: 'asc' },
+        { createdAt: 'desc' },
+      ],
+    })
+
+    return connections.map((connection: any) => this.sanitizeConnection(connection))
+  }
+
+  async createConnection(
+    workspaceId: string,
+    data: ChannelConnectionInput
+  ): Promise<unknown> {
+    try {
+      const connection = await inboxDb.channelConnection.create({
+        data: {
+          workspaceId,
+          provider: data.provider,
+          channel: data.channel,
+          name: data.name,
+          status: data.status ?? 'disconnected',
+          externalAccountId: data.externalAccountId,
+          externalAccountLabel: data.externalAccountLabel,
+          credentials: (data.credentials ?? {}) as Prisma.InputJsonValue,
+          settings: (data.settings ?? {}) as Prisma.InputJsonValue,
+        },
+      })
+
+      return this.sanitizeConnection(connection)
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictError('Ya existe una conexion para esa cuenta externa en este workspace')
+      }
+
+      throw error
+    }
+  }
+
+  async updateConnection(
+    workspaceId: string,
+    connectionId: string,
+    data: ChannelConnectionUpdateInput
+  ): Promise<unknown> {
+    await this.requireConnection(workspaceId, connectionId)
+
+    const connection = await inboxDb.channelConnection.update({
+      where: { id: connectionId },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.externalAccountLabel !== undefined && {
+          externalAccountLabel: data.externalAccountLabel,
+        }),
+        ...(data.credentials !== undefined && {
+          credentials: data.credentials as Prisma.InputJsonValue,
+        }),
+        ...(data.settings !== undefined && {
+          settings: data.settings as Prisma.InputJsonValue,
+        }),
+        ...(data.lastSyncedAt !== undefined && { lastSyncedAt: data.lastSyncedAt }),
+      },
+    })
+
+    return this.sanitizeConnection(connection)
+  }
+
+  async deleteConnection(workspaceId: string, connectionId: string): Promise<void> {
+    await this.requireConnection(workspaceId, connectionId)
+    await inboxDb.channelConnection.delete({
+      where: { id: connectionId },
+    })
+  }
 
   async ingestInboundMessage(message: NormalizedInboundMessage): Promise<IngestResult> {
     if (!message.externalAccountId || !message.externalUserId) {
@@ -324,5 +429,39 @@ export class InboxService {
     return typeof candidate === 'string' && candidate.trim()
       ? candidate.trim()
       : undefined
+  }
+
+  private async requireConnection(workspaceId: string, connectionId: string): Promise<any> {
+    const connection = await inboxDb.channelConnection.findFirst({
+      where: { id: connectionId, workspaceId },
+    })
+
+    if (!connection) {
+      throw new NotFoundError('ChannelConnection', connectionId)
+    }
+
+    return connection
+  }
+
+  private sanitizeConnection(connection: any) {
+    return {
+      id: connection.id,
+      workspaceId: connection.workspaceId,
+      provider: connection.provider,
+      channel: connection.channel,
+      name: connection.name,
+      status: connection.status,
+      externalAccountId: connection.externalAccountId,
+      externalAccountLabel: connection.externalAccountLabel,
+      settings: connection.settings,
+      hasCredentials: this.hasCredentials(connection.credentials),
+      lastSyncedAt: connection.lastSyncedAt,
+      createdAt: connection.createdAt,
+      updatedAt: connection.updatedAt,
+    }
+  }
+
+  private hasCredentials(value: unknown): boolean {
+    return !!value && typeof value === 'object' && Object.keys(value as Record<string, unknown>).length > 0
   }
 }
