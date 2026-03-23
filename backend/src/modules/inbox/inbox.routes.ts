@@ -79,21 +79,41 @@ export async function inboxRoutes(
   })
 
   app.post('/meta/webhook', async (req, reply) => {
-    const messages = await metaAdapter.parseInbound({
+    const envelope = {
       headers: req.headers,
       query: req.query as Record<string, unknown>,
       body: req.body,
-    })
+    }
 
-    const results = await Promise.all(
-      messages.map((message) => service.ingestInboundMessage(message))
-    )
+    const [messages, deliveryEvents] = await Promise.all([
+      metaAdapter.parseInbound(envelope),
+      metaAdapter.parseDeliveryEvents(envelope),
+    ])
+
+    const [messageResults, deliveryResults] = await Promise.all([
+      Promise.all(messages.map((message) => service.ingestInboundMessage(message))),
+      Promise.all(deliveryEvents.map((event) => service.applyDeliveryEvent(event))),
+    ])
+
+    const processedMessages = messageResults.filter((result) => result.status === 'created').length
+    const duplicateMessages = messageResults.filter((result) => result.status === 'duplicate').length
+    const ignoredMessages = messageResults.filter((result) => result.status === 'ignored').length
+
+    const processedStatuses = deliveryResults.filter((result) => result.status === 'updated').length
+    const duplicateStatuses = deliveryResults.filter((result) => result.status === 'duplicate').length
+    const ignoredStatuses = deliveryResults.filter((result) => result.status === 'ignored').length
 
     return reply.send({
       received: true,
-      processed: results.filter((result) => result.status === 'created').length,
-      duplicates: results.filter((result) => result.status === 'duplicate').length,
-      ignored: results.filter((result) => result.status === 'ignored').length,
+      processed: processedMessages,
+      duplicates: duplicateMessages,
+      ignored: ignoredMessages,
+      processedMessages,
+      duplicateMessages,
+      ignoredMessages,
+      processedStatuses,
+      duplicateStatuses,
+      ignoredStatuses,
     })
   })
 

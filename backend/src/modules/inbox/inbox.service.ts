@@ -11,6 +11,7 @@ import {
 } from '../../types'
 import type { ChannelProviderAdapter } from './provider'
 import type {
+  NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
 } from './types'
@@ -50,6 +51,14 @@ export interface ConversationFilters extends PaginationQuery {
 
 export interface IngestResult {
   status: 'created' | 'duplicate' | 'ignored'
+  reason?: string
+  workspaceId?: string
+  conversationId?: string
+  messageId?: string
+}
+
+export interface DeliveryEventResult {
+  status: 'updated' | 'duplicate' | 'ignored'
   reason?: string
   workspaceId?: string
   conversationId?: string
@@ -433,6 +442,99 @@ export class InboxService {
     }
   }
 
+  async applyDeliveryEvent(event: NormalizedDeliveryEvent): Promise<DeliveryEventResult> {
+    if (!event.externalAccountId || !event.providerMessageId) {
+      return { status: 'ignored', reason: 'missing_external_ids' }
+    }
+
+    const connection = await inboxDb.channelConnection.findFirst({
+      where: {
+        provider: event.provider,
+        channel: event.channel,
+        externalAccountId: event.externalAccountId,
+      },
+      select: {
+        id: true,
+        workspaceId: true,
+      },
+    })
+
+    if (!connection) {
+      return { status: 'ignored', reason: 'connection_not_found' }
+    }
+
+    const message = await inboxDb.message.findUnique({
+      where: { providerMessageId: event.providerMessageId },
+      select: {
+        id: true,
+        workspaceId: true,
+        conversationId: true,
+        status: true,
+        sentAt: true,
+        deliveredAt: true,
+        readAt: true,
+        failedAt: true,
+      },
+    })
+
+    if (!message) {
+      return { status: 'ignored', reason: 'message_not_found' }
+    }
+
+    if (message.workspaceId !== connection.workspaceId) {
+      return { status: 'ignored', reason: 'workspace_mismatch' }
+    }
+
+    const duplicateDelivery = await inboxDb.messageDelivery.findFirst({
+      where: {
+        messageId: message.id,
+        providerMessageId: event.providerMessageId,
+        providerStatus: event.status,
+        providerTimestamp: event.occurredAt,
+      },
+      select: { id: true },
+    })
+
+    if (duplicateDelivery) {
+      return {
+        status: 'duplicate',
+        workspaceId: message.workspaceId,
+        conversationId: message.conversationId,
+        messageId: message.id,
+      }
+    }
+
+    const messageUpdate = this.buildMessageStatusUpdate(message, event)
+
+    await inboxDb.$transaction(async (tx: any) => {
+      if (Object.keys(messageUpdate).length > 0) {
+        await tx.message.update({
+          where: { id: message.id },
+          data: messageUpdate,
+        })
+      }
+
+      await tx.messageDelivery.create({
+        data: {
+          messageId: message.id,
+          providerMessageId: event.providerMessageId,
+          providerStatus: event.status,
+          providerTimestamp: event.occurredAt,
+          errorCode: event.errorCode,
+          errorMessage: event.errorMessage,
+          rawPayload: event.rawPayload as Prisma.InputJsonValue,
+        },
+      })
+    })
+
+    return {
+      status: 'updated',
+      workspaceId: message.workspaceId,
+      conversationId: message.conversationId,
+      messageId: message.id,
+    }
+  }
+
   async listConversations(
     workspaceId: string,
     filters: ConversationFilters
@@ -658,6 +760,95 @@ export class InboxService {
     }
 
     return message
+  }
+
+  private buildMessageStatusUpdate(message: any, event: NormalizedDeliveryEvent): Record<string, unknown> {
+    const currentStatus = typeof message.status === 'string' ? message.status : 'pending'
+
+    switch (event.status) {
+      case 'sent':
+        if (currentStatus === 'failed' || currentStatus === 'deleted') {
+          return {}
+        }
+
+        return {
+          ...(this.shouldAdvanceProgressStatus(currentStatus, 'sent') && {
+            status: 'sent',
+          }),
+          ...(message.sentAt ? {} : { sentAt: event.occurredAt }),
+        }
+      case 'delivered':
+        if (currentStatus === 'failed' || currentStatus === 'deleted') {
+          return {}
+        }
+
+        return {
+          ...(this.shouldAdvanceProgressStatus(currentStatus, 'delivered') && {
+            status: 'delivered',
+          }),
+          ...(message.sentAt ? {} : { sentAt: event.occurredAt }),
+          ...(message.deliveredAt ? {} : { deliveredAt: event.occurredAt }),
+        }
+      case 'read':
+        if (currentStatus === 'failed' || currentStatus === 'deleted') {
+          return {}
+        }
+
+        return {
+          ...(this.shouldAdvanceProgressStatus(currentStatus, 'read') && {
+            status: 'read',
+          }),
+          ...(message.sentAt ? {} : { sentAt: event.occurredAt }),
+          ...(message.deliveredAt ? {} : { deliveredAt: event.occurredAt }),
+          ...(message.readAt ? {} : { readAt: event.occurredAt }),
+        }
+      case 'failed':
+        if (!this.shouldMarkAsFailed(currentStatus)) {
+          return {}
+        }
+
+        return {
+          status: 'failed',
+          ...(message.failedAt ? {} : { failedAt: event.occurredAt }),
+        }
+      case 'deleted':
+        return {
+          ...(currentStatus !== 'deleted' && { status: 'deleted' }),
+        }
+      default:
+        return {}
+    }
+  }
+
+  private shouldAdvanceProgressStatus(
+    currentStatus: string,
+    nextStatus: 'sent' | 'delivered' | 'read'
+  ): boolean {
+    if (currentStatus === 'failed' || currentStatus === 'deleted') {
+      return false
+    }
+
+    return this.getStatusOrder(nextStatus) > this.getStatusOrder(currentStatus)
+  }
+
+  private shouldMarkAsFailed(currentStatus: string): boolean {
+    return currentStatus !== 'delivered'
+      && currentStatus !== 'read'
+      && currentStatus !== 'deleted'
+      && currentStatus !== 'failed'
+  }
+
+  private getStatusOrder(status: string): number {
+    switch (status) {
+      case 'sent':
+        return 1
+      case 'delivered':
+        return 2
+      case 'read':
+        return 3
+      default:
+        return 0
+    }
   }
 
   private sanitizeConnection(connection: any) {

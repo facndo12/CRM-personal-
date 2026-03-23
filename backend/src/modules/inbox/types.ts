@@ -17,6 +17,13 @@ export type MessageKind =
   | 'sticker'
   | 'unsupported'
 
+export type DeliveryStatus =
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed'
+  | 'deleted'
+
 export interface NormalizedAttachment {
   type: Exclude<MessageKind, 'text' | 'unsupported'>
   mimeType?: string
@@ -40,6 +47,20 @@ export interface NormalizedInboundMessage {
   occurredAt: Date
   rawPayload: unknown
   attachments?: NormalizedAttachment[]
+  metadata?: Record<string, unknown>
+}
+
+export interface NormalizedDeliveryEvent {
+  provider: ChannelProvider
+  channel: ChannelKind
+  externalAccountId: string
+  providerMessageId: string
+  externalUserId?: string
+  status: DeliveryStatus
+  occurredAt: Date
+  rawPayload: unknown
+  errorCode?: string
+  errorMessage?: string
   metadata?: Record<string, unknown>
 }
 

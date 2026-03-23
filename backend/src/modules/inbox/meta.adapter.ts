@@ -5,8 +5,10 @@ import type {
   WebhookEnvelope,
 } from './provider'
 import type {
+  DeliveryStatus,
   MessageKind,
   NormalizedAttachment,
+  NormalizedDeliveryEvent,
   NormalizedInboundMessage,
   OutboundMessageDraft,
   OutboundMessageResult,
@@ -52,6 +54,16 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
 
     if (body.object === 'instagram') {
       return this.parsePageStyleMessages(body, 'instagram')
+    }
+
+    return []
+  }
+
+  async parseDeliveryEvents(input: WebhookEnvelope): Promise<NormalizedDeliveryEvent[]> {
+    const body = (input.body ?? {}) as PlainObject
+
+    if (body.object === 'whatsapp_business_account') {
+      return this.parseWhatsAppDeliveryEvents(body)
     }
 
     return []
@@ -219,6 +231,25 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     return messages
   }
 
+  private parseWhatsAppDeliveryEvents(body: PlainObject): NormalizedDeliveryEvent[] {
+    const events: NormalizedDeliveryEvent[] = []
+
+    for (const entry of body.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value ?? {}
+        const externalAccountId = this.asString(value.metadata?.phone_number_id)
+        if (!externalAccountId) continue
+
+        for (const statusPayload of value.statuses ?? []) {
+          const normalized = this.normalizeWhatsAppStatus(statusPayload, externalAccountId)
+          if (normalized) events.push(normalized)
+        }
+      }
+    }
+
+    return events
+  }
+
   private normalizeWhatsAppMessage(
     message: PlainObject,
     externalAccountId: string,
@@ -248,6 +279,42 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
       metadata: {
         displayName,
         profileName: displayName,
+      },
+    }
+  }
+
+  private normalizeWhatsAppStatus(
+    statusPayload: PlainObject,
+    externalAccountId: string
+  ): NormalizedDeliveryEvent | null {
+    const status = this.mapWhatsAppDeliveryStatus(statusPayload.status)
+    const providerMessageId = this.asString(statusPayload.id)
+    if (!status || !providerMessageId) return null
+
+    const firstError = Array.isArray(statusPayload.errors)
+      ? statusPayload.errors[0]
+      : undefined
+
+    return {
+      provider: 'meta',
+      channel: 'whatsapp',
+      externalAccountId,
+      providerMessageId,
+      externalUserId: this.asString(statusPayload.recipient_id),
+      status,
+      occurredAt: this.parseUnixTimestamp(statusPayload.timestamp),
+      rawPayload: statusPayload,
+      errorCode: this.asString(firstError?.code) ?? this.asNumberString(firstError?.code),
+      errorMessage: this.asString(
+        firstError?.message
+        ?? firstError?.title
+        ?? firstError?.error_data?.details
+      ),
+      metadata: {
+        recipientId: this.asString(statusPayload.recipient_id),
+        conversationId: this.asString(statusPayload.conversation?.id),
+        pricingCategory: this.asString(statusPayload.pricing?.category),
+        pricingModel: this.asString(statusPayload.pricing?.pricing_model),
       },
     }
   }
@@ -370,6 +437,19 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     }
   }
 
+  private mapWhatsAppDeliveryStatus(status: string | undefined): DeliveryStatus | null {
+    switch (status) {
+      case 'sent':
+      case 'delivered':
+      case 'read':
+      case 'failed':
+      case 'deleted':
+        return status
+      default:
+        return null
+    }
+  }
+
   private mapWhatsAppAttachmentType(type: string | undefined): Exclude<MessageKind, 'text' | 'unsupported'> | null {
     switch (type) {
       case 'image':
@@ -434,6 +514,12 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
 
   private isPlainObject(value: unknown): value is PlainObject {
     return !!value && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  private asNumberString(value: unknown): string | undefined {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? String(value)
+      : undefined
   }
 
   private asString(value: unknown): string | undefined {
