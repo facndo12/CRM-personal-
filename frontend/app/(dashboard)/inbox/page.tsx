@@ -378,7 +378,7 @@ export default function InboxPage() {
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50">Bandeja operativa de conversaciones</h1>
             <p className="mt-2 max-w-3xl text-sm font-medium text-slate-600 dark:text-slate-300">
-              Este paso vuelve la bandeja menos torpe: refresca sola cuando la pestaña esta visible y online, sin venderte realtime falso ni pegarle al backend cuando no hace falta.
+              Este paso vuelve la bandeja menos torpe: refresca sola cuando la pestaÃ±a esta visible y online, sin venderte realtime falso ni pegarle al backend cuando no hace falta.
             </p>
           </div>
 
@@ -690,7 +690,7 @@ export default function InboxPage() {
 
                 {isOnline && !isPageVisible && (
                   <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200">
-                    El auto refresh se pausa cuando cambias de pestaña. Lo hago a proposito para no gastar requests sin sentido.
+                    El auto refresh se pausa cuando cambias de pestaÃ±a. Lo hago a proposito para no gastar requests sin sentido.
                   </div>
                 )}
 
