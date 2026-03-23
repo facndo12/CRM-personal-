@@ -48,12 +48,20 @@ const updateConnectionSchema = z.object({
   lastSyncedAt: z.union([z.coerce.date(), z.null()]).optional(),
 })
 
+const sendConversationMessageSchema = z.object({
+  text: z.string().min(1).max(4096),
+  replyToMessageId: z.string().min(1).optional(),
+  previewUrl: z.boolean().optional(),
+})
+
 export async function inboxRoutes(
   app: FastifyInstance,
   options: { eventBus: EventBus }
 ) {
-  const service = new InboxService(options.eventBus)
   const metaAdapter = new MetaWebhookAdapter(config.META_WEBHOOK_VERIFY_TOKEN)
+  const service = new InboxService(options.eventBus, {
+    meta: metaAdapter,
+  })
 
   // Webhook publico para Meta. No lleva auth del CRM.
   app.get('/meta/webhook', async (req, reply) => {
@@ -151,6 +159,14 @@ export async function inboxRoutes(
       const messages = await service.listMessages(ctx.workspaceId, req.params.id, filters)
       return reply.send(messages)
     })
+
+    privateApp.post<{ Params: { id: string } }>('/conversations/:id/messages', {
+      preHandler: requireRole('owner', 'admin', 'member'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      const body = sendConversationMessageSchema.parse(req.body) as Parameters<typeof service.sendConversationMessage>[2]
+      const message = await service.sendConversationMessage(ctx.workspaceId, req.params.id, body)
+      return reply.status(201).send(message)
+    })
   })
 }
-

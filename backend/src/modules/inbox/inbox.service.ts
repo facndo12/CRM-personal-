@@ -4,11 +4,16 @@ import { EventBus } from '../../core/event-bus'
 import {
   ConflictError,
   NotFoundError,
+  ValidationError,
   paginate,
   type PaginatedResult,
   type PaginationQuery,
 } from '../../types'
-import type { NormalizedInboundMessage } from './types'
+import type { ChannelProviderAdapter } from './provider'
+import type {
+  NormalizedInboundMessage,
+  OutboundMessageDraft,
+} from './types'
 
 const inboxDb = db as any
 
@@ -32,6 +37,12 @@ export interface ChannelConnectionUpdateInput {
   lastSyncedAt?: Date | null
 }
 
+export interface SendConversationMessageInput {
+  text: string
+  replyToMessageId?: string
+  previewUrl?: boolean
+}
+
 export interface ConversationFilters extends PaginationQuery {
   channel?: string
   status?: string
@@ -46,7 +57,10 @@ export interface IngestResult {
 }
 
 export class InboxService {
-  constructor(private readonly eventBus: EventBus) {}
+  constructor(
+    private readonly eventBus: EventBus,
+    private readonly adapters: Record<string, ChannelProviderAdapter> = {}
+  ) {}
 
   async listConnections(workspaceId: string): Promise<unknown[]> {
     const connections = await inboxDb.channelConnection.findMany({
@@ -125,6 +139,170 @@ export class InboxService {
     await inboxDb.channelConnection.delete({
       where: { id: connectionId },
     })
+  }
+
+  async sendConversationMessage(
+    workspaceId: string,
+    conversationId: string,
+    input: SendConversationMessageInput
+  ): Promise<unknown> {
+    const text = input.text.trim()
+    if (!text) {
+      throw new ValidationError('El mensaje no puede estar vacio')
+    }
+
+    const conversation = await inboxDb.conversation.findFirst({
+      where: { id: conversationId, workspaceId },
+      include: {
+        connection: true,
+      },
+    })
+
+    if (!conversation) {
+      throw new NotFoundError('Conversation', conversationId)
+    }
+
+    if (!conversation.externalUserId) {
+      throw new ValidationError('La conversacion no tiene externalUserId para enviar mensajes')
+    }
+
+    const adapter = this.requireAdapter(conversation.provider)
+    const replyTarget = await this.resolveReplyTarget(
+      workspaceId,
+      conversationId,
+      input.replyToMessageId
+    )
+    const queuedAt = new Date()
+
+    const pendingMessage = await inboxDb.$transaction(async (tx: any) => {
+      const createdMessage = await tx.message.create({
+        data: {
+          workspaceId,
+          conversationId: conversation.id,
+          contactId: conversation.contactId,
+          provider: conversation.provider,
+          channel: conversation.channel,
+          direction: 'outbound',
+          type: 'text',
+          status: 'pending',
+          providerReplyToId: replyTarget?.providerMessageId,
+          text,
+          metadata: {
+            previewUrl: input.previewUrl ?? false,
+          } as Prisma.InputJsonValue,
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: queuedAt,
+          status: 'open',
+          inboxState: 'active',
+        },
+      })
+
+      return createdMessage
+    })
+
+    const draft: OutboundMessageDraft = {
+      provider: conversation.provider,
+      channel: conversation.channel,
+      externalAccountId: conversation.connection.externalAccountId,
+      externalUserId: conversation.externalUserId,
+      externalThreadId: conversation.externalThreadId,
+      providerReplyToId: replyTarget?.providerMessageId,
+      text,
+      metadata: {
+        previewUrl: input.previewUrl ?? false,
+      },
+      credentials: this.asJsonRecord(conversation.connection.credentials),
+      settings: this.asJsonRecord(conversation.connection.settings),
+    }
+
+    try {
+      const result = await adapter.sendMessage(draft)
+
+      const message = await inboxDb.$transaction(async (tx: any) => {
+        await tx.message.update({
+          where: { id: pendingMessage.id },
+          data: {
+            status: 'sent',
+            providerMessageId: result.providerMessageId,
+            rawPayload: result.rawResponse as Prisma.InputJsonValue,
+            sentAt: result.acceptedAt,
+            failedAt: null,
+          },
+        })
+
+        await tx.messageDelivery.create({
+          data: {
+            messageId: pendingMessage.id,
+            providerMessageId: result.providerMessageId,
+            providerStatus: 'accepted',
+            providerTimestamp: result.acceptedAt,
+            rawPayload: result.rawResponse as Prisma.InputJsonValue,
+          },
+        })
+
+        await tx.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastOutboundAt: result.acceptedAt,
+            lastMessageAt: result.acceptedAt,
+            status: 'open',
+            inboxState: 'active',
+          },
+        })
+
+        return tx.message.findUnique({
+          where: { id: pendingMessage.id },
+          include: {
+            attachments: true,
+            deliveries: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        })
+      })
+
+      await this.eventBus.emit('message.sent', {
+        workspaceId,
+        provider: conversation.provider,
+        channel: conversation.channel,
+        contactId: conversation.contactId,
+        conversationId: conversation.id,
+        messageId: pendingMessage.id,
+      })
+
+      return message
+    } catch (error) {
+      const failedAt = new Date()
+      const rawPayload = this.serializeError(error)
+
+      await inboxDb.$transaction(async (tx: any) => {
+        await tx.message.update({
+          where: { id: pendingMessage.id },
+          data: {
+            status: 'failed',
+            rawPayload: rawPayload as Prisma.InputJsonValue,
+            failedAt,
+          },
+        })
+
+        await tx.messageDelivery.create({
+          data: {
+            messageId: pendingMessage.id,
+            providerStatus: 'failed',
+            providerTimestamp: failedAt,
+            errorMessage: this.extractErrorMessage(error),
+            rawPayload: rawPayload as Prisma.InputJsonValue,
+          },
+        })
+      })
+
+      throw error
+    }
   }
 
   async ingestInboundMessage(message: NormalizedInboundMessage): Promise<IngestResult> {
@@ -443,6 +621,45 @@ export class InboxService {
     return connection
   }
 
+  private requireAdapter(provider: string): ChannelProviderAdapter {
+    const adapter = this.adapters[provider]
+    if (!adapter) {
+      throw new ValidationError(`No hay adapter configurado para el provider ${provider}`)
+    }
+
+    return adapter
+  }
+
+  private async resolveReplyTarget(
+    workspaceId: string,
+    conversationId: string,
+    replyToMessageId?: string
+  ) {
+    if (!replyToMessageId) return null
+
+    const message = await inboxDb.message.findFirst({
+      where: {
+        id: replyToMessageId,
+        workspaceId,
+        conversationId,
+      },
+      select: {
+        id: true,
+        providerMessageId: true,
+      },
+    })
+
+    if (!message) {
+      throw new NotFoundError('Message', replyToMessageId)
+    }
+
+    if (!message.providerMessageId) {
+      throw new ValidationError('No se puede responder sobre un mensaje que no tiene providerMessageId')
+    }
+
+    return message
+  }
+
   private sanitizeConnection(connection: any) {
     return {
       id: connection.id,
@@ -463,5 +680,28 @@ export class InboxService {
 
   private hasCredentials(value: unknown): boolean {
     return !!value && typeof value === 'object' && Object.keys(value as Record<string, unknown>).length > 0
+  }
+
+  private asJsonRecord(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : undefined
+  }
+
+  private serializeError(error: unknown): Record<string, unknown> {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+      }
+    }
+
+    return {
+      message: String(error),
+    }
+  }
+
+  private extractErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Error desconocido al enviar el mensaje'
   }
 }

@@ -1,3 +1,4 @@
+import { ValidationError } from '../../types'
 import type {
   ChannelProviderAdapter,
   VerifyWebhookResult,
@@ -12,10 +13,14 @@ import type {
 } from './types'
 
 type PlainObject = Record<string, any>
+type JsonRecord = Record<string, unknown>
 
 export class MetaWebhookAdapter implements ChannelProviderAdapter {
   readonly provider = 'meta'
   readonly channel = 'meta'
+
+  private static readonly DEFAULT_API_VERSION = 'v23.0'
+  private static readonly DEFAULT_BASE_URL = 'https://graph.facebook.com'
 
   constructor(private readonly verifyToken?: string) {}
 
@@ -52,8 +57,147 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     return []
   }
 
-  async sendMessage(_: OutboundMessageDraft): Promise<OutboundMessageResult> {
-    throw new Error('MetaWebhookAdapter todavia no implementa envio saliente')
+  async sendMessage(input: OutboundMessageDraft): Promise<OutboundMessageResult> {
+    if (input.channel !== 'whatsapp') {
+      throw new ValidationError('Meta solo implementa envio saliente para WhatsApp en este paso')
+    }
+
+    if (input.attachments?.length) {
+      throw new ValidationError('Este paso solo admite mensajes de texto para WhatsApp')
+    }
+
+    const externalAccountId = this.asString(input.externalAccountId)
+    if (!externalAccountId) {
+      throw new ValidationError('La conexion de WhatsApp no tiene externalAccountId configurado')
+    }
+
+    const externalUserId = this.asString(input.externalUserId)
+    if (!externalUserId) {
+      throw new ValidationError('La conversacion no tiene externalUserId para enviar el mensaje')
+    }
+
+    const text = this.asString(input.text)
+    if (!text) {
+      throw new ValidationError('El mensaje de WhatsApp no puede estar vacio')
+    }
+
+    const accessToken = this.readString(input.credentials, 'accessToken')
+    if (!accessToken) {
+      throw new ValidationError('La conexion de WhatsApp no tiene accessToken configurado')
+    }
+
+    const payload: PlainObject = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: externalUserId,
+      type: 'text',
+      text: {
+        body: text,
+      },
+    }
+
+    const previewUrl = this.readBoolean(input.metadata, 'previewUrl')
+    if (previewUrl !== undefined) {
+      payload.text.preview_url = previewUrl
+    }
+
+    if (input.providerReplyToId) {
+      payload.context = {
+        message_id: input.providerReplyToId,
+      }
+    }
+
+    const endpoint = `${this.resolveBaseUrl(input)}/${this.resolveApiVersion(input)}/${externalAccountId}/messages`
+    const rawResponse = await this.postJson(endpoint, accessToken, payload)
+    const providerMessageId = this.asString(rawResponse.messages?.[0]?.id)
+
+    if (!providerMessageId) {
+      throw new Error('Meta acepto el envio pero no devolvio el id del mensaje')
+    }
+
+    return {
+      providerMessageId,
+      acceptedAt: new Date(),
+      rawResponse,
+    }
+  }
+
+  private async postJson(
+    url: string,
+    accessToken: string,
+    payload: PlainObject
+  ): Promise<PlainObject> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15_000)
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Meta no respondio a tiempo al enviar el mensaje')
+      }
+
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    const rawBody = await response.text()
+    const parsedBody = this.parseResponseBody(rawBody)
+
+    if (!response.ok) {
+      const providerMessage = this.extractProviderError(parsedBody)
+        ?? `Meta respondio con status ${response.status}`
+
+      if (response.status >= 400 && response.status < 500) {
+        throw new ValidationError(providerMessage)
+      }
+
+      throw new Error(providerMessage)
+    }
+
+    return parsedBody
+  }
+
+  private parseResponseBody(value: string): PlainObject {
+    if (!value.trim()) return {}
+
+    try {
+      const parsed = JSON.parse(value)
+      return this.isPlainObject(parsed) ? parsed : { value: parsed }
+    } catch {
+      return { raw: value }
+    }
+  }
+
+  private extractProviderError(body: PlainObject): string | undefined {
+    return this.asString(
+      body.error?.error_user_msg
+      ?? body.error?.message
+      ?? body.message
+    )
+  }
+
+  private resolveApiVersion(input: OutboundMessageDraft): string {
+    return this.readString(input.settings, 'apiVersion')
+      ?? this.readString(input.credentials, 'apiVersion')
+      ?? MetaWebhookAdapter.DEFAULT_API_VERSION
+  }
+
+  private resolveBaseUrl(input: OutboundMessageDraft): string {
+    const configuredBaseUrl = this.readString(input.settings, 'baseUrl')
+      ?? this.readString(input.credentials, 'baseUrl')
+
+    return (configuredBaseUrl ?? MetaWebhookAdapter.DEFAULT_BASE_URL).replace(/\/+$/, '')
   }
 
   private parseWhatsApp(body: PlainObject): NormalizedInboundMessage[] {
@@ -271,6 +415,25 @@ export class MetaWebhookAdapter implements ChannelProviderAdapter {
     if (!Number.isFinite(numeric)) return new Date()
 
     return new Date(numeric > 1e12 ? numeric : numeric * 1000)
+  }
+
+  private readString(record: unknown, key: string): string | undefined {
+    if (!this.isJsonRecord(record)) return undefined
+    return this.asString(record[key])
+  }
+
+  private readBoolean(record: unknown, key: string): boolean | undefined {
+    if (!this.isJsonRecord(record)) return undefined
+    const value = record[key]
+    return typeof value === 'boolean' ? value : undefined
+  }
+
+  private isJsonRecord(value: unknown): value is JsonRecord {
+    return !!value && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  private isPlainObject(value: unknown): value is PlainObject {
+    return !!value && typeof value === 'object' && !Array.isArray(value)
   }
 
   private asString(value: unknown): string | undefined {

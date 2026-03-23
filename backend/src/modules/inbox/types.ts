@@ -46,11 +46,15 @@ export interface NormalizedInboundMessage {
 export interface OutboundMessageDraft {
   provider: ChannelProvider
   channel: ChannelKind
+  externalAccountId: string
   externalUserId: string
   externalThreadId?: string
+  providerReplyToId?: string
   text?: string
   attachments?: NormalizedAttachment[]
   metadata?: Record<string, unknown>
+  credentials?: Record<string, unknown>
+  settings?: Record<string, unknown>
 }
 
 export interface OutboundMessageResult {
