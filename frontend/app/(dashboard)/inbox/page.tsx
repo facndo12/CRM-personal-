@@ -10,6 +10,11 @@ import {
   ChevronDown,
   Circle,
   Clock3,
+  ExternalLink,
+  FileAudio,
+  FileImage,
+  FileText,
+  FileVideo,
   Inbox,
   Loader2,
   MessageSquareText,
@@ -23,7 +28,7 @@ import {
 } from 'lucide-react'
 import { inboxApi } from '@/lib/api'
 import { auth } from '@/lib/auth'
-import { canDo, type InboxConversation, type InboxMessage, type PaginatedResult, type Role } from '@/types'
+import { canDo, type InboxConversation, type InboxMessage, type InboxMessageAttachment, type PaginatedResult, type Role } from '@/types'
 
 const ALLOWED_ROLES: Role[] = ['owner', 'admin', 'member']
 const CONVERSATION_LIMIT = 100
@@ -88,6 +93,124 @@ function resolveMessageState(message: InboxMessage) {
   }
 
   return { label: 'Pendiente', tone: 'text-amber-600 dark:text-amber-300' }
+}
+
+function formatFileSize(sizeBytes?: number | null) {
+  if (!sizeBytes || sizeBytes < 1) return null
+
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (sizeBytes >= 1024) {
+    return `${Math.round(sizeBytes / 1024)} KB`
+  }
+
+  return `${sizeBytes} B`
+}
+
+function resolveAttachmentKind(attachment: InboxMessageAttachment) {
+  const mimeType = attachment.mimeType?.toLowerCase() ?? ''
+  const type = attachment.type.toLowerCase()
+
+  if (mimeType.startsWith('image/') || ['image', 'photo', 'sticker'].includes(type)) return 'image'
+  if (mimeType.startsWith('audio/') || ['audio', 'voice', 'ptt'].includes(type)) return 'audio'
+  if (mimeType.startsWith('video/') || ['video'].includes(type)) return 'video'
+  if (mimeType.startsWith('application/') || ['document', 'file', 'pdf'].includes(type)) return 'document'
+  return 'generic'
+}
+
+function renderAttachmentIcon(kind: ReturnType<typeof resolveAttachmentKind>) {
+  if (kind === 'image') return <FileImage size={16} />
+  if (kind === 'audio') return <FileAudio size={16} />
+  if (kind === 'video') return <FileVideo size={16} />
+  return <FileText size={16} />
+}
+
+function MessageAttachments({
+  attachments,
+  isOutbound,
+}: {
+  attachments: InboxMessageAttachment[]
+  isOutbound: boolean
+}) {
+  const shellClassName = isOutbound
+    ? 'border-white/20 bg-white/10 text-white/90'
+    : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-200'
+
+  return (
+    <div className="mt-3 space-y-3">
+      {attachments.map((attachment) => {
+        const kind = resolveAttachmentKind(attachment)
+        const sizeLabel = formatFileSize(attachment.sizeBytes)
+        const title = attachment.fileName || attachment.mimeType || attachment.type || 'Adjunto'
+
+        return (
+          <div
+            key={attachment.id}
+            className={clsx('overflow-hidden rounded-2xl border', shellClassName)}
+          >
+            {kind === 'image' && attachment.url && (
+              <a href={attachment.url} target="_blank" rel="noreferrer" className="block">
+                <img
+                  src={attachment.url}
+                  alt={title}
+                  className="max-h-72 w-full bg-slate-900/10 object-cover"
+                />
+              </a>
+            )}
+
+            <div className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em]">
+                    {renderAttachmentIcon(kind)}
+                    {kind}
+                  </div>
+                  <p className="mt-2 truncate text-sm font-semibold">{title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium opacity-80">
+                    {attachment.mimeType && <span>{attachment.mimeType}</span>}
+                    {sizeLabel && <span>{sizeLabel}</span>}
+                  </div>
+                </div>
+
+                {attachment.url && (
+                  <a
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={clsx(
+                      'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em]',
+                      isOutbound
+                        ? 'bg-white/15 text-white'
+                        : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                    )}
+                  >
+                    Abrir
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+
+              {kind === 'audio' && attachment.url && (
+                <audio controls src={attachment.url} className="mt-3 w-full" />
+              )}
+
+              {kind === 'video' && attachment.url && (
+                <video controls src={attachment.url} className="mt-3 max-h-72 w-full rounded-2xl bg-black/70" />
+              )}
+
+              {!attachment.url && (
+                <p className="mt-3 text-xs font-medium opacity-80">
+                  Este adjunto existe en la base, pero no tiene URL publica para vista previa todavia.
+                </p>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export default function InboxPage() {
@@ -632,14 +755,10 @@ export default function InboxPage() {
                             )}
 
                             {message.attachments.length > 0 && (
-                              <div className={clsx(
-                                'mt-3 rounded-2xl border px-3 py-2 text-xs font-semibold',
-                                isOutbound
-                                  ? 'border-white/20 bg-white/10 text-white/90'
-                                  : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300'
-                              )}>
-                                {message.attachments.length} adjunto(s) guardado(s). La previsualizacion fina la dejo para otro paso; hoy importa operar el hilo.
-                              </div>
+                              <MessageAttachments
+                                attachments={message.attachments}
+                                isOutbound={isOutbound}
+                              />
                             )}
 
                             <div className={clsx(
