@@ -30,6 +30,7 @@ export interface NormalizedAttachment {
 export interface NormalizedInboundMessage {
   provider: ChannelProvider
   channel: ChannelKind
+  externalAccountId: string
   externalUserId: string
   externalThreadId?: string
   providerMessageId?: string

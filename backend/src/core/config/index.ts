@@ -8,6 +8,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_KEY_PREFIX: z.string().default('crm'),
   FRONTEND_URL:    z.string().url().default('http://localhost:3001'),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
