@@ -2,7 +2,7 @@ import axios from 'axios'
 import { auth } from './auth'
 import type {
   Contact, Deal, Webhook,
-  Pipeline, Stage,
+  Pipeline, Stage, InboxConnection, EmbeddedSignupConfig,
 } from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
@@ -13,8 +13,8 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Interceptor — agrega el token JWT automáticamente a cada request
-// Sin esto tendrías que pasarlo manualmente en cada llamada
+// Interceptor: agrega el token JWT automaticamente a cada request
+// Sin esto tendrias que pasarlo manualmente en cada llamada
 api.interceptors.request.use((config) => {
   const token = auth.getToken()
   if (token) {
@@ -23,9 +23,9 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Interceptor de respuesta — maneja errores globalmente
-// Si el token expiró (401), limpia la sesión y redirige al login.
-// Omitimos la redirección si el error de auth proviene del propio login.
+// Interceptor de respuesta: maneja errores globalmente
+// Si el token expiro (401), limpia la sesion y redirige al login.
+// Omitimos la redireccion si el error de auth proviene del propio login.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -39,7 +39,7 @@ api.interceptors.response.use(
   }
 )
 
-// ─── Auth ──────────────────────────────────────────────────────────
+// Auth
 export const authApi = {
   register: (data: {
     email: string
@@ -69,7 +69,7 @@ export const authApi = {
     api.post('/auth/reset-password', { token, password }),
 }
 
-// ─── Contactos ────────────────────────────────────────────────────
+// Contactos
 type ContactFiltersQuery = {
   search?: string; status?: string; page?: number
   limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc'
@@ -96,7 +96,7 @@ export const contactsApi = {
     api.post(`/contacts/${winnerId}/merge`, { loserId }),
 }
 
-// ─── Deals ────────────────────────────────────────────────────────
+// Deals
 type CreateDealPayload = {
   title: string; pipelineId: string; stageId: string
   value?: number; currency?: string; probability?: number
@@ -125,7 +125,7 @@ export const dealsApi = {
     api.delete(`/deals/${id}`),
 }
 
-// ─── Webhooks ─────────────────────────────────────────────────────
+// Webhooks
 type WebhookPayload = { name: string; url: string; events: string[]; secret?: string }
 
 export const webhooksApi = {
@@ -148,7 +148,7 @@ export const webhooksApi = {
     api.post(`/webhooks/${id}/test`),
 }
 
-// ─── Pipelines ────────────────────────────────────────────────────
+// Pipelines
 export const pipelinesApi = {
   list:        ()                                                            => api.get('/pipelines'),
   create:      (data: Pick<Pipeline, 'name'>)                                => api.post('/pipelines', data),
@@ -162,7 +162,7 @@ export const pipelinesApi = {
     api.delete(`/pipelines/${pipelineId}/stages/${stageId}`),
 }
 
-//Actividades
+// Actividades
 export const activitiesApi = {
   list: (contactId: string) =>
     api.get('/activities', { params: { contactId } }),
@@ -187,12 +187,12 @@ export const notesApi = {
   delete: (id: string) => api.delete(`/notes/${id}`),
 }
 
-//DASHBOARD
+// Dashboard
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
 }
 
-// ─── Equipo ────────────────────────────────────────────────────────
+// Equipo
 export const teamApi = {
   list: () =>
     api.get('/auth/team'),
@@ -207,3 +207,26 @@ export const teamApi = {
     api.delete(`/auth/team/${memberId}`),
 }
 
+
+// Inbox / Canales
+export const inboxApi = {
+  listConnections: () =>
+    api.get<InboxConnection[]>('/inbox/connections'),
+
+  testConnection: (id: string) =>
+    api.post(`/inbox/connections/${id}/test`),
+
+  getEmbeddedSignupConfig: () =>
+    api.get<EmbeddedSignupConfig>('/inbox/meta/whatsapp/embedded-signup/config'),
+
+  completeEmbeddedSignup: (data: {
+    phoneNumberId: string
+    accessToken: string
+    businessId?: string
+    wabaId?: string
+    displayPhoneNumber?: string
+    verifiedName?: string
+    qualityRating?: string
+    name?: string
+  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete', data),
+}

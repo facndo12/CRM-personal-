@@ -1,0 +1,545 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import clsx from 'clsx'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  KeyRound,
+  Loader2,
+  MessageSquare,
+  Phone,
+  PlugZap,
+  RefreshCcw,
+  ShieldCheck,
+  Webhook,
+} from 'lucide-react'
+
+import { auth } from '@/lib/auth'
+import { inboxApi } from '@/lib/api'
+import type {
+  EmbeddedSignupCompletionResult,
+  EmbeddedSignupConfig,
+  InboxConnection,
+} from '@/types'
+
+const INITIAL_FORM = {
+  name: '',
+  accessToken: '',
+  phoneNumberId: '',
+  displayPhoneNumber: '',
+  verifiedName: '',
+  wabaId: '',
+  businessId: '',
+  qualityRating: '',
+}
+
+function maskValue(value?: string | null) {
+  if (!value) return 'No disponible'
+  if (value.length <= 8) return value
+  return `${value.slice(0, 4)}***${value.slice(-4)}`
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return 'Aun sin sincronizar'
+  return new Date(value).toLocaleString('es-AR')
+}
+
+function ReadinessItem({
+  ready,
+  title,
+  description,
+}: {
+  ready: boolean
+  title: string
+  description: string
+}) {
+  return (
+    <div
+      className={clsx(
+        'rounded-2xl border px-4 py-3 transition-all',
+        ready
+          ? 'border-emerald-200 bg-emerald-50/80 text-emerald-900'
+          : 'border-amber-200 bg-amber-50/90 text-amber-900'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={clsx(
+            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border',
+            ready
+              ? 'border-emerald-200 bg-white text-emerald-600'
+              : 'border-amber-200 bg-white text-amber-600'
+          )}
+        >
+          {ready ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold tracking-tight">{title}</p>
+          <p className="mt-1 text-sm leading-relaxed opacity-80">{description}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: InboxConnection['status'] }) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]',
+        status === 'connected' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        status === 'error' && 'border-rose-200 bg-rose-50 text-rose-700',
+        status === 'disconnected' && 'border-slate-200 bg-slate-50 text-slate-500'
+      )}
+    >
+      <span
+        className={clsx(
+          'h-2 w-2 rounded-full',
+          status === 'connected' && 'bg-emerald-500',
+          status === 'error' && 'bg-rose-500',
+          status === 'disconnected' && 'bg-slate-400'
+        )}
+      />
+      {status}
+    </span>
+  )
+}
+
+export default function ChannelsPage() {
+  const queryClient = useQueryClient()
+  const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [lastCompletion, setLastCompletion] = useState<EmbeddedSignupCompletionResult | null>(null)
+  const [form, setForm] = useState(INITIAL_FORM)
+
+  useEffect(() => {
+    setUser(auth.get())
+  }, [])
+
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+
+  const configQuery = useQuery<EmbeddedSignupConfig>({
+    queryKey: ['channels', 'embedded-signup-config'],
+    queryFn: () => inboxApi.getEmbeddedSignupConfig().then((response) => response.data),
+    enabled: canManage,
+  })
+
+  const connectionsQuery = useQuery<InboxConnection[]>({
+    queryKey: ['channels', 'connections'],
+    queryFn: () => inboxApi.listConnections().then((response) => response.data),
+    enabled: canManage,
+  })
+
+  const completeMutation = useMutation({
+    mutationFn: () => inboxApi.completeEmbeddedSignup({
+      name: form.name || undefined,
+      accessToken: form.accessToken.trim(),
+      phoneNumberId: form.phoneNumberId.trim(),
+      displayPhoneNumber: form.displayPhoneNumber || undefined,
+      verifiedName: form.verifiedName || undefined,
+      wabaId: form.wabaId || undefined,
+      businessId: form.businessId || undefined,
+      qualityRating: form.qualityRating || undefined,
+    }),
+    onSuccess: (response) => {
+      setLastCompletion(response.data)
+      setShowForm(false)
+      setForm(INITIAL_FORM)
+      queryClient.invalidateQueries({ queryKey: ['channels', 'connections'] })
+    },
+  })
+
+  const testMutation = useMutation({
+    mutationFn: (connectionId: string) => inboxApi.testConnection(connectionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels', 'connections'] })
+    },
+  })
+
+  function copyText(value: string, key: string) {
+    navigator.clipboard.writeText(value)
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 1500)
+  }
+
+  if (!canManage) {
+    return (
+      <div className="mx-auto max-w-4xl p-6 animate-fade-in">
+        <div className="interactive-card p-8">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Canales</h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">
+                Solo `owner` y `admin` pueden gestionar conexiones de WhatsApp y completar el onboarding desde Embedded Signup.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const whatsappConnections = (connectionsQuery.data ?? []).filter(
+    (connection) => connection.provider === 'meta' && connection.channel === 'whatsapp'
+  )
+
+  const embeddedConfigReady = !!configQuery.data?.enabled
+  const hasActiveConnection = whatsappConnections.some((connection) => connection.status === 'connected')
+
+  return (
+    <div className="mx-auto max-w-7xl p-6 animate-fade-in space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-primary-700">Consola de canales</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900">WhatsApp en Meta</h1>
+          <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-500">
+            Conecta numeros de WhatsApp, valida credenciales y deja visible que parte del onboarding ya esta resuelta y que sigue bloqueado.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowForm((current) => !current)}
+          className="btn-primary"
+        >
+          <PlugZap size={18} strokeWidth={2.4} />
+          {showForm ? 'Ocultar alta manual' : 'Registrar conexion'}
+        </button>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+        <section className="interactive-card p-6">
+          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-primary-200 bg-primary-50 text-primary-700">
+                <MessageSquare size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Alta operativa</h2>
+                <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">
+                  Esta pantalla ya usa el backend nuevo. Hoy el cierre del onboarding se hace cargando el payload que te devuelve Meta: `accessToken` y `phoneNumberId` son obligatorios.
+                </p>
+              </div>
+            </div>
+            <StatusBadge status={hasActiveConnection ? 'connected' : 'disconnected'} />
+          </div>
+
+          {lastCompletion && (
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 animate-slide-up">
+              <p className="text-sm font-bold text-emerald-800">
+                Conexion {lastCompletion.mode === 'created' ? 'creada' : 'actualizada'} y validada.
+              </p>
+              <p className="mt-1 text-sm font-medium text-emerald-700">
+                {lastCompletion.connection.externalAccountLabel ?? lastCompletion.connection.externalAccountId}
+              </p>
+            </div>
+          )}
+
+          {showForm && (
+            <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-5 animate-slide-up">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
+                  Nombre interno
+                  <input
+                    value={form.name}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="WhatsApp soporte AR"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  Phone Number ID *
+                  <input
+                    value={form.phoneNumberId}
+                    onChange={(event) => setForm((current) => ({ ...current, phoneNumberId: event.target.value }))}
+                    placeholder="123456789012345"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  Display phone
+                  <input
+                    value={form.displayPhoneNumber}
+                    onChange={(event) => setForm((current) => ({ ...current, displayPhoneNumber: event.target.value }))}
+                    placeholder="+54 11 5555 1234"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  Verified name
+                  <input
+                    value={form.verifiedName}
+                    onChange={(event) => setForm((current) => ({ ...current, verifiedName: event.target.value }))}
+                    placeholder="Mi empresa"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  WABA ID
+                  <input
+                    value={form.wabaId}
+                    onChange={(event) => setForm((current) => ({ ...current, wabaId: event.target.value }))}
+                    placeholder="987654321098765"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  Business ID
+                  <input
+                    value={form.businessId}
+                    onChange={(event) => setForm((current) => ({ ...current, businessId: event.target.value }))}
+                    placeholder="135792468013579"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
+                  Quality rating
+                  <input
+                    value={form.qualityRating}
+                    onChange={(event) => setForm((current) => ({ ...current, qualityRating: event.target.value }))}
+                    placeholder="GREEN"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
+                  Access token *
+                  <textarea
+                    value={form.accessToken}
+                    onChange={(event) => setForm((current) => ({ ...current, accessToken: event.target.value }))}
+                    placeholder="Pega aca el access token que te devuelve Meta"
+                    rows={5}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-4 focus:ring-primary-500/15"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  El backend crea o actualiza la conexion y luego corre `testConnection()`.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowForm(false)}
+                    className="btn-secondary"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => completeMutation.mutate()}
+                    disabled={!form.phoneNumberId.trim() || !form.accessToken.trim() || completeMutation.isPending}
+                    className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {completeMutation.isPending ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <PlugZap size={16} strokeWidth={2.4} />
+                    )}
+                    Completar onboarding
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {completeMutation.isError && (
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm font-medium text-rose-700">
+              {(completeMutation.error as Error).message || 'No se pudo completar el onboarding'}
+            </div>
+          )}
+        </section>
+
+        <aside className="interactive-card p-6">
+          <div className="flex items-start gap-4 border-b border-slate-100 pb-5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">Readiness</h2>
+              <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
+                Esta columna te dice si ya podes lanzar el popup embebido o si seguis en modo completion manual.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <ReadinessItem
+              ready={embeddedConfigReady}
+              title="Config del popup"
+              description={embeddedConfigReady
+                ? 'El backend ya publica META_APP_ID y META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID para la futura UI del popup.'
+                : 'Faltan META_APP_ID o META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID. La completion manual sigue funcionando igual.'}
+            />
+            <ReadinessItem
+              ready={hasActiveConnection}
+              title="Linea operativa"
+              description={hasActiveConnection
+                ? 'Ya hay al menos una conexion validada en estado connected.'
+                : 'Todavia no hay ninguna linea de WhatsApp validada y usable desde el CRM.'}
+            />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Config publicada</p>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Meta App ID</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-800">{maskValue(configQuery.data?.appId)}</p>
+                </div>
+                {configQuery.data?.appId && (
+                  <button
+                    onClick={() => copyText(configQuery.data!.appId!, 'app-id')}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-500 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
+                  >
+                    {copiedKey === 'app-id' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Config ID</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-800">{maskValue(configQuery.data?.configurationId)}</p>
+                </div>
+                {configQuery.data?.configurationId && (
+                  <button
+                    onClick={() => copyText(configQuery.data!.configurationId!, 'config-id')}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-500 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
+                  >
+                    {copiedKey === 'config-id' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Siguiente salto</p>
+            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600">
+              Cuando quieras cerrar el loop completo, el paso que falta es abrir el popup real de Meta desde esta misma pantalla y mandar el payload directo al endpoint `/embedded-signup/complete`.
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      <section className="interactive-card p-6">
+        <div className="flex flex-col gap-3 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Lineas registradas</p>
+            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">Conexiones de WhatsApp</h2>
+          </div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <Webhook size={16} className="text-primary-500" />
+            {whatsappConnections.length} conexion{whatsappConnections.length === 1 ? '' : 'es'}
+          </div>
+        </div>
+
+        {connectionsQuery.isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="animate-spin text-primary-500" size={40} />
+          </div>
+        ) : whatsappConnections.length === 0 ? (
+          <div className="mt-6 rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-white text-slate-400">
+              <Phone size={26} />
+            </div>
+            <h3 className="mt-4 text-lg font-bold tracking-tight text-slate-900">Todavia no hay lineas conectadas</h3>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
+              Registra la primera conexion desde el bloque superior. El backend ya valida la linea apenas cerras el onboarding.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {whatsappConnections.map((connection) => {
+              const isTesting = testMutation.isPending && testMutation.variables === connection.id
+
+              return (
+                <article
+                  key={connection.id}
+                  className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[var(--shadow-office)]"
+                >
+                  <div
+                    className={clsx(
+                      'h-1.5 w-full',
+                      connection.status === 'connected' && 'bg-emerald-500',
+                      connection.status === 'error' && 'bg-rose-500',
+                      connection.status === 'disconnected' && 'bg-slate-300'
+                    )}
+                  />
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+                            <Phone size={18} />
+                          </div>
+                          <div>
+                            <p className="text-lg font-extrabold tracking-tight text-slate-900">{connection.name}</p>
+                            <p className="text-sm font-medium text-slate-500">
+                              {connection.externalAccountLabel || connection.externalAccountId}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <StatusBadge status={connection.status} />
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Phone Number ID</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">{connection.externalAccountId}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Ultima sincronizacion</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">{formatDate(connection.lastSyncedAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      <span className={clsx(
+                        'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]',
+                        connection.hasCredentials
+                          ? 'border-primary-200 bg-primary-50 text-primary-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700'
+                      )}>
+                        <KeyRound size={12} />
+                        {connection.hasCredentials ? 'Con credenciales' : 'Sin credenciales'}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <Webhook size={12} />
+                        meta / whatsapp
+                      </span>
+                    </div>
+
+                    <div className="mt-5 flex justify-end">
+                      <button
+                        onClick={() => testMutation.mutate(connection.id)}
+                        disabled={isTesting}
+                        className="btn-secondary"
+                      >
+                        {isTesting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                        Probar conexion
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

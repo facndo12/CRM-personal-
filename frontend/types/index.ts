@@ -1,13 +1,13 @@
-// ─── Roles ────────────────────────────────────────────────────────
+// Roles
 export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
-/** Helper para verificar si un rol tiene acceso a una acción */
+/** Helper para verificar si un rol tiene acceso a una accion */
 export function canDo(userRole: Role | string | undefined, allowedRoles: Role[]): boolean {
   if (!userRole) return false
   return allowedRoles.includes(userRole as Role)
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────
+// Auth
 export interface User {
   id: string
   email: string
@@ -29,7 +29,7 @@ export interface AuthResponse {
   accessToken: string
 }
 
-// ─── Contactos ────────────────────────────────────────────────────
+// Contactos
 export interface Contact {
   id: string
   workspaceId: string
@@ -69,7 +69,7 @@ export interface ContactFilters {
   scoreMax?: number
 }
 
-// ─── Deals y Kanban ───────────────────────────────────────────────
+// Deals y Kanban
 export interface Deal {
   id: string
   workspaceId: string
@@ -130,7 +130,7 @@ export interface KanbanBoard {
   columns: KanbanColumn[]
 }
 
-// ─── Webhooks ─────────────────────────────────────────────────────
+// Webhooks
 export interface Webhook {
   id: string
   workspaceId: string
@@ -146,7 +146,7 @@ export interface Webhook {
   updatedAt: string
 }
 
-// ─── API Keys ─────────────────────────────────────────────────────
+// API Keys
 export interface ApiKey {
   id: string
   name: string
@@ -157,7 +157,7 @@ export interface ApiKey {
   createdAt: string
 }
 
-// ── Activities ───────────────────────────────────────────────────
+// Activities
 export interface Activity {
   id:          string
   type:        string
@@ -168,7 +168,7 @@ export interface Activity {
   createdAt:   string
 }
 
-// ── Notes ────────────────────────────────────────────────────────
+// Notes
 export interface Note {
   id:        string
   content:   string
@@ -177,7 +177,7 @@ export interface Note {
   createdAt: string
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────
+// Dashboard
 export interface DashboardData {
   contacts: {
     total:    number
@@ -211,7 +211,7 @@ export interface DashboardData {
   }[]
 }
 
-// ── Pipelines ──────────────────────────────────────────────────────
+// Pipelines
 export interface Stage {
   id:         string
   pipelineId: string
@@ -226,4 +226,44 @@ export interface Pipeline {
   name:        string
   stages:      Stage[]
   createdAt:   string
+}
+// Canales / Inbox
+export interface InboxConnection {
+  id: string
+  workspaceId: string
+  provider: 'meta' | 'tiktok'
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+  name: string
+  status: 'disconnected' | 'connected' | 'error'
+  externalAccountId: string
+  externalAccountLabel?: string | null
+  settings?: Record<string, unknown>
+  hasCredentials: boolean
+  lastSyncedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmbeddedSignupConfig {
+  enabled: boolean
+  appId?: string
+  configurationId?: string
+  provider: 'meta'
+  channel: 'whatsapp'
+}
+
+export interface ConnectionInspection {
+  status: 'connected'
+  externalAccountLabel?: string
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
+export interface ConnectionTestResult {
+  connection: InboxConnection
+  inspection: ConnectionInspection
+}
+
+export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
+  mode: 'created' | 'updated'
 }
