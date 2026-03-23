@@ -71,6 +71,21 @@ export interface ConnectionTestResult {
   inspection: ConnectionInspectionResult
 }
 
+export interface CompleteWhatsAppEmbeddedSignupInput {
+  phoneNumberId: string
+  accessToken: string
+  businessId?: string
+  wabaId?: string
+  displayPhoneNumber?: string
+  verifiedName?: string
+  qualityRating?: string
+  name?: string
+}
+
+export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
+  mode: 'created' | 'updated'
+}
+
 export class InboxService {
   constructor(
     private readonly eventBus: EventBus,
@@ -196,6 +211,82 @@ export class InboxService {
       }).catch(() => {})
 
       throw error
+    }
+  }
+
+  async completeWhatsAppEmbeddedSignup(
+    workspaceId: string,
+    input: CompleteWhatsAppEmbeddedSignupInput
+  ): Promise<EmbeddedSignupCompletionResult> {
+    const phoneNumberId = input.phoneNumberId.trim()
+    const accessToken = input.accessToken.trim()
+
+    if (!phoneNumberId) {
+      throw new ValidationError('phoneNumberId es obligatorio para completar Embedded Signup')
+    }
+
+    if (!accessToken) {
+      throw new ValidationError('accessToken es obligatorio para completar Embedded Signup')
+    }
+
+    const existing = await inboxDb.channelConnection.findFirst({
+      where: {
+        workspaceId,
+        provider: 'meta',
+        channel: 'whatsapp',
+        externalAccountId: phoneNumberId,
+      },
+    })
+
+    const connectionName = input.name?.trim()
+      || this.buildEmbeddedSignupLabel(input)
+      || `WhatsApp ${phoneNumberId}`
+
+    const mergedCredentials = {
+      ...(this.asJsonRecord(existing?.credentials) ?? {}),
+      accessToken,
+    }
+
+    const mergedSettings = {
+      ...(this.asJsonRecord(existing?.settings) ?? {}),
+      onboardingSource: 'embedded_signup',
+      ...(input.businessId?.trim() && { metaBusinessId: input.businessId.trim() }),
+      ...(input.wabaId?.trim() && { metaWabaId: input.wabaId.trim() }),
+      ...(input.displayPhoneNumber?.trim() && { metaDisplayPhoneNumber: input.displayPhoneNumber.trim() }),
+      ...(input.verifiedName?.trim() && { metaVerifiedName: input.verifiedName.trim() }),
+      ...(input.qualityRating?.trim() && { metaQualityRating: input.qualityRating.trim() }),
+    }
+
+    const connection = existing
+      ? await inboxDb.channelConnection.update({
+          where: { id: existing.id },
+          data: {
+            name: connectionName,
+            status: 'disconnected',
+            externalAccountLabel: this.buildEmbeddedSignupLabel(input) ?? existing.externalAccountLabel,
+            credentials: mergedCredentials as Prisma.InputJsonValue,
+            settings: mergedSettings as Prisma.InputJsonValue,
+          },
+        })
+      : await inboxDb.channelConnection.create({
+          data: {
+            workspaceId,
+            provider: 'meta',
+            channel: 'whatsapp',
+            name: connectionName,
+            status: 'disconnected',
+            externalAccountId: phoneNumberId,
+            externalAccountLabel: this.buildEmbeddedSignupLabel(input),
+            credentials: mergedCredentials as Prisma.InputJsonValue,
+            settings: mergedSettings as Prisma.InputJsonValue,
+          },
+        })
+
+    const result = await this.testConnection(workspaceId, connection.id)
+
+    return {
+      mode: existing ? 'updated' : 'created',
+      ...result,
     }
   }
 
@@ -898,6 +989,20 @@ export class InboxService {
       default:
         return 0
     }
+  }
+
+  private buildEmbeddedSignupLabel(input: {
+    displayPhoneNumber?: string
+    verifiedName?: string
+  }): string | undefined {
+    const verifiedName = input.verifiedName?.trim()
+    const displayPhoneNumber = input.displayPhoneNumber?.trim()
+
+    if (verifiedName && displayPhoneNumber) {
+      return `${verifiedName} (${displayPhoneNumber})`
+    }
+
+    return verifiedName || displayPhoneNumber || undefined
   }
 
   private sanitizeConnection(connection: any) {

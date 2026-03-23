@@ -54,6 +54,17 @@ const sendConversationMessageSchema = z.object({
   previewUrl: z.boolean().optional(),
 })
 
+const completeEmbeddedSignupSchema = z.object({
+  phoneNumberId: z.string().min(1).max(120),
+  accessToken: z.string().min(1),
+  businessId: z.string().min(1).max(120).optional(),
+  wabaId: z.string().min(1).max(120).optional(),
+  displayPhoneNumber: z.string().min(1).max(60).optional(),
+  verifiedName: z.string().min(1).max(120).optional(),
+  qualityRating: z.string().min(1).max(40).optional(),
+  name: z.string().min(1).max(100).optional(),
+})
+
 export async function inboxRoutes(
   app: FastifyInstance,
   options: { eventBus: EventBus }
@@ -122,6 +133,20 @@ export async function inboxRoutes(
       await authenticate(req)
     })
 
+    privateApp.get('/meta/whatsapp/embedded-signup/config', {
+      preHandler: requireRole('owner', 'admin'),
+    }, async (_, reply) => {
+      const enabled = !!(config.META_APP_ID && config.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID)
+
+      return reply.send({
+        enabled,
+        appId: config.META_APP_ID,
+        configurationId: config.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID,
+        provider: 'meta',
+        channel: 'whatsapp',
+      })
+    })
+
     privateApp.get('/connections', {
       preHandler: requireRole('owner', 'admin'),
     }, async (req, reply) => {
@@ -154,6 +179,15 @@ export async function inboxRoutes(
       const ctx = req.user as { workspaceId: string }
       const result = await service.testConnection(ctx.workspaceId, req.params.id)
       return reply.send(result)
+    })
+
+    privateApp.post('/meta/whatsapp/embedded-signup/complete', {
+      preHandler: requireRole('owner', 'admin'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      const body = completeEmbeddedSignupSchema.parse(req.body) as Parameters<typeof service.completeWhatsAppEmbeddedSignup>[1]
+      const result = await service.completeWhatsAppEmbeddedSignup(ctx.workspaceId, body)
+      return reply.status(201).send(result)
     })
 
     privateApp.delete<{ Params: { id: string } }>('/connections/:id', {
