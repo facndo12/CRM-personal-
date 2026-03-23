@@ -25,6 +25,10 @@ model Workspace {
   webhooks   WebhookEndpoint[]  
   apiKeys    ApiKey[]           
   eventLogs  EventLog[]     
+  channelConnections ChannelConnection[]
+  contactIdentities  ContactIdentity[]
+  conversations      Conversation[]
+  messages           Message[]
 
   @@map("workspaces")
 }
@@ -86,6 +90,9 @@ model Contact {
   deals     DealContact[]
   activities    Activity[] 
   notes      Note[]
+  identities ContactIdentity[]
+  conversations Conversation[]
+  messages   Message[]
 
   @@index([workspaceId])
   @@index([workspaceId, email])
@@ -268,4 +275,148 @@ model EventLog {
   @@index([workspaceId, event])
   @@index([workspaceId, createdAt])
   @@map("event_logs")
+}
+
+model ChannelConnection {
+  id                   String   @id @default(cuid())
+  workspaceId          String
+  provider             String
+  channel              String
+  name                 String
+  status               String   @default("disconnected")
+  externalAccountId    String
+  externalAccountLabel String?
+  credentials          Json     @default("{}")
+  settings             Json     @default("{}")
+  lastSyncedAt         DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([workspaceId, channel])
+  @@unique([workspaceId, channel, externalAccountId])
+  @@map("channel_connections")
+}
+
+model ContactIdentity {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  contactId           String
+  provider            String
+  channel             String
+  externalUserId      String
+  externalUsername    String?
+  externalDisplayName String?
+  metadata            Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@unique([workspaceId, channel, externalUserId])
+  @@map("contact_identities")
+}
+
+model Conversation {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  connectionId     String
+  contactId        String
+  provider         String
+  channel          String
+  externalThreadId String?
+  externalUserId   String?
+  status           String   @default("open")
+  inboxState       String   @default("active")
+  unreadCount      Int      @default(0)
+  lastInboundAt    DateTime?
+  lastOutboundAt   DateTime?
+  lastMessageAt    DateTime?
+  assignedToUserId String?
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection  ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  contact     Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@index([workspaceId, channel, lastMessageAt])
+  @@index([contactId])
+  @@unique([connectionId, contactId])
+  @@map("conversations")
+}
+
+model Message {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  conversationId    String
+  contactId         String?
+  provider          String
+  channel           String
+  direction         String
+  type              String   @default("text")
+  status            String   @default("pending")
+  providerMessageId String?  @unique
+  providerReplyToId String?
+  text              String?
+  rawPayload        Json?
+  metadata          Json     @default("{}")
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  attachments  MessageAttachment[]
+  deliveries   MessageDelivery[]
+
+  @@index([conversationId, createdAt])
+  @@index([workspaceId, channel, createdAt])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id              String   @id @default(cuid())
+  messageId        String
+  type             String
+  mimeType         String?
+  url              String?
+  externalAssetId  String?
+  fileName         String?
+  sizeBytes        Int?
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachments")
+}
+
+model MessageDelivery {
+  id                String   @id @default(cuid())
+  messageId          String
+  providerMessageId String?
+  providerStatus    String
+  providerTimestamp DateTime?
+  errorCode         String?
+  errorMessage      String?
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+  @@index([providerMessageId])
+  @@map("message_deliveries")
 }
