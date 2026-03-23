@@ -223,7 +223,9 @@ export async function inboxRoutes(
       return reply.code(204).send()
     })
 
-    privateApp.get('/conversations', async (req, reply) => {
+    privateApp.get('/conversations', {
+      preHandler: requireRole('owner', 'admin', 'member'),
+    }, async (req, reply) => {
       const ctx = req.user as { workspaceId: string }
       const filters = z.object({
         channel: channelSchema.optional(),
@@ -236,7 +238,9 @@ export async function inboxRoutes(
       return reply.send(conversations)
     })
 
-    privateApp.get<{ Params: { id: string } }>('/conversations/:id/messages', async (req, reply) => {
+    privateApp.get<{ Params: { id: string } }>('/conversations/:id/messages', {
+      preHandler: requireRole('owner', 'admin', 'member'),
+    }, async (req, reply) => {
       const ctx = req.user as { workspaceId: string }
       const filters = z.object({
         page: z.coerce.number().min(0).default(0),
@@ -245,6 +249,14 @@ export async function inboxRoutes(
 
       const messages = await service.listMessages(ctx.workspaceId, req.params.id, filters)
       return reply.send(messages)
+    })
+
+    privateApp.post<{ Params: { id: string } }>('/conversations/:id/read', {
+      preHandler: requireRole('owner', 'admin', 'member'),
+    }, async (req, reply) => {
+      const ctx = req.user as { workspaceId: string }
+      await service.markConversationAsRead(ctx.workspaceId, req.params.id)
+      return reply.code(204).send()
     })
 
     privateApp.post<{ Params: { id: string } }>('/conversations/:id/messages', {

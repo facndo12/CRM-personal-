@@ -2,7 +2,7 @@ import axios from 'axios'
 import { auth } from './auth'
 import type {
   Contact, Deal, Webhook,
-  Pipeline, Stage, InboxConnection, EmbeddedSignupConfig,
+  Pipeline, Stage, InboxConnection, EmbeddedSignupConfig, InboxConversation, InboxMessage, PaginatedResult,
 } from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
@@ -212,6 +212,27 @@ export const teamApi = {
 export const inboxApi = {
   listConnections: () =>
     api.get<InboxConnection[]>('/inbox/connections'),
+
+  listConversations: (params?: {
+    channel?: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+    status?: string
+    page?: number
+    limit?: number
+  }) =>
+    api.get<PaginatedResult<InboxConversation>>('/inbox/conversations', { params }),
+
+  listMessages: (conversationId: string, params?: { page?: number; limit?: number }) =>
+    api.get<PaginatedResult<InboxMessage>>(`/inbox/conversations/${conversationId}/messages`, { params }),
+
+  markConversationRead: (conversationId: string) =>
+    api.post(`/inbox/conversations/${conversationId}/read`),
+
+  sendConversationMessage: (conversationId: string, data: {
+    text: string
+    replyToMessageId?: string
+    previewUrl?: boolean
+  }) =>
+    api.post<InboxMessage>(`/inbox/conversations/${conversationId}/messages`, data),
 
   testConnection: (id: string) =>
     api.post(`/inbox/connections/${id}/test`),

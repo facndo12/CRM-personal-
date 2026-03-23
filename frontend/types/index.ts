@@ -227,6 +227,112 @@ export interface Pipeline {
   stages:      Stage[]
   createdAt:   string
 }
+export interface InboxConversationPreviewAttachment {
+  type: string
+  url?: string | null
+  fileName?: string | null
+}
+
+export interface InboxConversationLatestMessage {
+  id: string
+  direction: 'inbound' | 'outbound'
+  type: string
+  text?: string | null
+  status: string
+  sentAt?: string | null
+  createdAt: string
+  attachments: InboxConversationPreviewAttachment[]
+}
+
+export interface InboxConversationContact {
+  id: string
+  firstName: string
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+}
+
+export interface InboxConversationConnection {
+  id: string
+  name: string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+  status: 'disconnected' | 'connected' | 'error'
+  externalAccountId: string
+  externalAccountLabel?: string | null
+}
+
+export interface InboxConversation {
+  id: string
+  workspaceId: string
+  connectionId: string
+  contactId: string
+  provider: 'meta' | 'tiktok' | string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok' | string
+  externalThreadId?: string | null
+  externalUserId?: string | null
+  status: string
+  inboxState: string
+  unreadCount: number
+  lastInboundAt?: string | null
+  lastOutboundAt?: string | null
+  lastMessageAt?: string | null
+  assignedToUserId?: string | null
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  contact: InboxConversationContact
+  connection: InboxConversationConnection
+  messages: InboxConversationLatestMessage[]
+}
+
+export interface InboxMessageAttachment {
+  id: string
+  type: string
+  mimeType?: string | null
+  url?: string | null
+  externalAssetId?: string | null
+  fileName?: string | null
+  sizeBytes?: number | null
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface InboxMessageDelivery {
+  id: string
+  messageId: string
+  providerMessageId?: string | null
+  providerStatus: string
+  providerTimestamp?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  rawPayload?: unknown
+  createdAt: string
+}
+
+export interface InboxMessage {
+  id: string
+  workspaceId: string
+  conversationId: string
+  contactId?: string | null
+  provider: 'meta' | 'tiktok' | string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok' | string
+  direction: 'inbound' | 'outbound'
+  type: string
+  status: string
+  providerMessageId?: string | null
+  providerReplyToId?: string | null
+  text?: string | null
+  rawPayload?: unknown
+  metadata?: Record<string, unknown>
+  sentAt?: string | null
+  deliveredAt?: string | null
+  readAt?: string | null
+  failedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  attachments: InboxMessageAttachment[]
+  deliveries: InboxMessageDelivery[]
+}
 // Canales / Inbox
 export interface InboxConnection {
   id: string

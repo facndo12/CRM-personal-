@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import {
-  Users, KanbanSquare, Webhook, MessageSquare,
+  Users, KanbanSquare, Webhook, MessageSquare, Inbox,
   Key, LogOut, LayoutDashboard, Layers,
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/contacts', label: 'Contactos', icon: Users },
   { href: '/deals', label: 'Deals', icon: KanbanSquare },
   { href: '/pipelines', label: 'Pipelines', icon: Layers, roles: ['owner', 'admin'] as Role[] },
+  { href: '/inbox', label: 'Inbox', icon: Inbox, roles: ['owner', 'admin', 'member'] as Role[] },
   { href: '/channels', label: 'Canales', icon: MessageSquare, roles: ['owner', 'admin'] as Role[] },
   { href: '/webhooks', label: 'Webhooks', icon: Webhook, roles: ['owner', 'admin'] as Role[] },
   { href: '/api-keys', label: 'API Keys', icon: Key, roles: ['owner', 'admin'] as Role[] },

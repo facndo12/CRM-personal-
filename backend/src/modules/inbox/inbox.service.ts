@@ -788,12 +788,58 @@ export class InboxService {
               externalAccountLabel: true,
             },
           },
+          messages: {
+            take: 1,
+            orderBy: [
+              { sentAt: 'desc' },
+              { createdAt: 'desc' },
+            ],
+            select: {
+              id: true,
+              direction: true,
+              type: true,
+              text: true,
+              status: true,
+              sentAt: true,
+              createdAt: true,
+              attachments: {
+                take: 1,
+                select: {
+                  type: true,
+                  url: true,
+                  fileName: true,
+                },
+              },
+            },
+          },
         },
       }),
       inboxDb.conversation.count({ where }),
     ])
 
     return paginate(items, total, page, limit)
+  }
+
+  async markConversationAsRead(
+    workspaceId: string,
+    conversationId: string
+  ): Promise<void> {
+    const conversation = await inboxDb.conversation.findFirst({
+      where: { id: conversationId, workspaceId },
+      select: { id: true },
+    })
+
+    if (!conversation) {
+      throw new NotFoundError('Conversation', conversationId)
+    }
+
+    await inboxDb.conversation.update({
+      where: { id: conversationId },
+      data: {
+        unreadCount: 0,
+        inboxState: 'active',
+      },
+    })
   }
 
   async listMessages(
