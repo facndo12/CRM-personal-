@@ -9,6 +9,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -240,7 +241,13 @@ export default function KanbanPage() {
   const [addingToStage, setAddingToStage] = useState<string | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
+      },
+    })
   )
 
   const { data: board, isLoading } = useQuery<KanbanBoard>({
