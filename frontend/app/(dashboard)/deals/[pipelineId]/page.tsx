@@ -51,7 +51,7 @@ function DealCard({ deal }: { deal: KanbanCard }) {
       {/* Drag handle grip area — 6 dots pattern */}
       <div
         {...listeners}
-        className="flex w-6 shrink-0 cursor-grab items-start justify-center pt-3 pb-2 transition-colors active:cursor-grabbing hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+        className="flex w-6 shrink-0 cursor-grab items-start justify-center pt-3 pb-2 transition-colors active:cursor-grabbing hover:bg-black/[0.02] dark:hover:bg-white/[0.02] touch-none"
         style={{ borderRight: '1px solid var(--border-0)' }}
       >
         <div className="grid grid-cols-2 gap-[2px] opacity-40 group-hover:opacity-100 transition-opacity">
