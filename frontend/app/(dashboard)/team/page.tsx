@@ -71,14 +71,14 @@ export default function TeamPage() {
     <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
 
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-title">Equipo</h1>
           <p className="page-subtitle">
             {members.length} miembro{members.length !== 1 ? 's' : ''} en tu entorno de trabajo
           </p>
         </div>
-        <button onClick={() => setShowInvite(true)} className="btn-primary">
+        <button onClick={() => setShowInvite(true)} className="btn-primary self-start sm:self-auto">
           <UserPlus size={15} strokeWidth={2.5} />
           Invitar usuario
         </button>
@@ -163,7 +163,7 @@ export default function TeamPage() {
             const isOwnerMember = member.role === 'owner'
 
             return (
-              <div key={member.id} className="interactive-card flex items-center gap-4 px-5 py-3.5">
+              <div key={member.id} className="interactive-card flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-3.5">
                 {/* Avatar */}
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
@@ -190,8 +190,8 @@ export default function TeamPage() {
                   <p className="text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>{member.user.email}</p>
                 </div>
 
-                {/* Role */}
-                <div className="flex items-center gap-3">
+                {/* Actions */}
+                <div className="flex items-center gap-3 mt-2 sm:mt-0 sm:ml-auto">
                   {isOwner && !isOwnerMember && !isMe ? (
                     <div className="relative">
                       <select

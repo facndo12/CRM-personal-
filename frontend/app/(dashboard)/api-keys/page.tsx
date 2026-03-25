@@ -44,12 +44,12 @@ export default function ApiKeysPage() {
     <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-title">API Keys</h1>
           <p className="page-subtitle">Tokens de acceso para integraciones externas</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
+        <button onClick={() => setShowForm(true)} className="btn-primary self-start sm:self-auto">
           <Plus size={15} strokeWidth={2.5} />
           Nueva API Key
         </button>
@@ -142,7 +142,7 @@ export default function ApiKeysPage() {
       ) : (
         <div className="space-y-2">
           {apiKeys?.map((apiKey) => (
-            <div key={apiKey.id} className="interactive-card flex items-center gap-4 p-4">
+            <div key={apiKey.id} className="interactive-card flex flex-col sm:flex-row sm:items-center gap-4 p-4">
               {/* Icon */}
               <div
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"

@@ -173,14 +173,14 @@ export default function ContactDetailPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden animate-slide-up">
+      <div className="flex flex-1 flex-col md:flex-row overflow-hidden animate-slide-up">
 
         {/* ── Left panel — contact info ──────────────────────────── */}
         <div
-          className="w-72 shrink-0 overflow-y-auto p-5"
+          className="w-full md:w-72 shrink-0 md:overflow-y-auto p-5 border-b md:border-b-0 border-r-0 md:border-r"
           style={{
             background:  'var(--surface-0)',
-            borderRight: '1px solid var(--border-1)',
+            borderColor: 'var(--border-1)',
           }}
         >
           <p className="section-label mb-4">Detalles del contacto</p>

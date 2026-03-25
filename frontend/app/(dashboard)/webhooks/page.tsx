@@ -71,12 +71,12 @@ export default function WebhooksPage() {
     <div className="animate-fade-in p-4 md:p-8 max-w-[1000px]">
 
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-title">Webhooks</h1>
           <p className="page-subtitle">Notificaciones automáticas a sistemas externos</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
+        <button onClick={() => setShowForm(true)} className="btn-primary self-start sm:self-auto">
           <Plus size={15} strokeWidth={2.5} />
           Nuevo webhook
         </button>
@@ -175,7 +175,7 @@ export default function WebhooksPage() {
         <div className="space-y-2">
           {webhooks?.map((wh) => (
             <div key={wh.id} className="interactive-card p-5">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div className="flex-1 min-w-0">
 
                   {/* URL + status */}
@@ -237,7 +237,7 @@ export default function WebhooksPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 mt-3 sm:mt-0 sm:shrink-0">
                   <button
                     onClick={() => testMutation.mutate(wh.id)}
                     disabled={testMutation.isPending}
