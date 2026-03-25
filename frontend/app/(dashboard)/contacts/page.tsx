@@ -197,14 +197,14 @@ export default function ContactsPage() {
                 </div>
 
                 {/* Name + contact info */}
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
+                    <span className="text-sm font-semibold tracking-tight truncate" style={{ color: 'var(--ink-primary)' }}>
                       {contact.firstName} {contact.lastName}
                     </span>
                     <span
                       className={clsx(
-                        'rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                        'rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shrink-0',
                         STATUS_LABEL[contact.status] ?? 'border-zinc-200 bg-zinc-50 text-zinc-600'
                       )}
                     >
@@ -213,13 +213,13 @@ export default function ContactsPage() {
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                     {contact.email && (
-                      <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                        <Mail size={11} /> {contact.email}
+                      <span className="flex items-center gap-1 text-[11px] truncate max-w-full" style={{ color: 'var(--ink-tertiary)' }}>
+                        <Mail size={11} className="shrink-0" /> <span className="truncate">{contact.email}</span>
                       </span>
                     )}
                     {contact.phone && (
-                      <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                        <Phone size={11} /> {contact.phone}
+                      <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: 'var(--ink-tertiary)' }}>
+                        <Phone size={11} className="shrink-0" /> {contact.phone}
                       </span>
                     )}
                   </div>
