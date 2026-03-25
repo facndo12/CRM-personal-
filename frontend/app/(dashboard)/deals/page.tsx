@@ -14,58 +14,54 @@ export default function DealsPage() {
     queryFn:  () => pipelinesApi.list().then((r) => r.data),
   })
 
-  // Redirigir automáticamente si hay un solo pipeline
   useEffect(() => {
     if (pipelines?.length === 1) {
       router.push(`/deals/${pipelines[0].id}`)
     }
   }, [pipelines, router])
 
-  if (isLoading) {
+  if (isLoading || pipelines?.length === 1) {
     return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <Loader2 className="animate-spin text-primary-500" size={40} />
-      </div>
-    )
-  }
-
-  // Mientras redirige, mostrar loading
-  if (pipelines?.length === 1) {
-    return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <Loader2 className="animate-spin text-primary-500" size={40} />
+      <div className="flex h-[70vh] items-center justify-center">
+        <div
+          className="h-5 w-5 animate-spin rounded-full border-2"
+          style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+    <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Embudos de Ventas</h1>
-        <p className="text-slate-500 font-medium mt-1">Seleccioná un pipeline para administrar tus negocios</p>
+        <h1 className="page-title">Embudos de Ventas</h1>
+        <p className="page-subtitle">Seleccioná un pipeline para administrar tus negocios</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
         {pipelines?.map((pipeline: any) => (
           <button
             key={pipeline.id}
             onClick={() => router.push(`/deals/${pipeline.id}`)}
-            className="interactive-card p-5 text-left group flex items-center justify-between"
+            className="interactive-card group flex items-center justify-between p-5 text-left"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center text-primary-600 shadow-sm relative overflow-hidden">
-                <KanbanSquare size={20} className="text-primary-600 relative z-10" strokeWidth={2.5} />
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-lg"
+                style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
+              >
+                <KanbanSquare size={18} strokeWidth={2} />
               </div>
               <div>
-                <p className="text-slate-900 font-bold text-lg tracking-tight group-hover:text-primary-600 transition-colors">{pipeline.name}</p>
-                <p className="text-slate-500 font-medium text-sm mt-0.5">
+                <p className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
+                  {pipeline.name}
+                </p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-tertiary)' }}>
                   {pipeline.stages.length} etapas
                 </p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600 group-hover:border-primary-100 flex items-center justify-center transition-all bg-white">
-               <ArrowRight size={16} strokeWidth={2.5} />
-            </div>
+            <ArrowRight size={14} style={{ color: 'var(--ink-tertiary)' }} className="group-hover:translate-x-0.5 transition-transform" />
           </button>
         ))}
       </div>

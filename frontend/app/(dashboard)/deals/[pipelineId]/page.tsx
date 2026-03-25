@@ -34,49 +34,70 @@ function DealCard({ deal }: { deal: KanbanCard }) {
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        background: 'var(--surface-0)',
+        borderColor: isDragging ? 'var(--accent)' : 'var(--border-1)',
+        boxShadow: isDragging ? '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' : 'none',
+      }}
       {...attributes}
-      {...listeners}
       className={clsx(
-        'bg-white border rounded-xl p-3 cursor-grab select-none transition-shadow duration-200 group relative',
-        isDragging ? 'opacity-50 ring-2 ring-primary-500 shadow-xl z-50 cursor-grabbing' : 'border-slate-200 hover:border-primary-300 hover:shadow-md shadow-sm'
+        'interactive-card flex overflow-hidden border transition-all duration-200 group relative',
+        isDragging ? 'opacity-90 z-50 ring-2 ring-violet-500/20' : ''
       )}
+    >
+      {/* Drag handle grip area — 6 dots pattern */}
+      <div
+        {...listeners}
+        className="flex w-6 shrink-0 cursor-grab items-start justify-center pt-3 pb-2 transition-colors active:cursor-grabbing hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+        style={{ borderRight: '1px solid var(--border-0)' }}
       >
-      {/* Indicador de arrastre sutil en hover */}
-      <div className="absolute top-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-[2px]">
-        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+        <div className="grid grid-cols-2 gap-[2px] opacity-40 group-hover:opacity-100 transition-opacity">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-[2.5px] w-[2.5px] rounded-full" style={{ background: 'var(--ink-tertiary)' }} />
+          ))}
+        </div>
       </div>
 
-      <p className="text-slate-900 text-sm font-bold leading-snug pr-4">{deal.title}</p>
-      
-      {deal.value && (
-        <div className="flex items-center gap-1.5 mt-2.5">
-          <div className="flex items-center justify-center bg-emerald-100 text-emerald-600 rounded-md w-5 h-5">
-            <DollarSign size={12} strokeWidth={3} />
+      <div className="flex-1 p-3 min-w-0">
+        <p className="text-[13px] font-bold leading-snug tracking-tight truncate" style={{ color: 'var(--ink-primary)' }}>
+          {deal.title}
+        </p>
+
+        {deal.value && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="text-[12px] font-bold tracking-tight" style={{ color: 'var(--semantic-success)' }}>
+              ${deal.value.toLocaleString()} {deal.currency}
+            </span>
           </div>
-          <span className="text-emerald-700 text-xs font-bold tracking-tight">
-            {deal.value.toLocaleString()} {deal.currency}
-          </span>
+        )}
+
+        <div
+          className="mt-2.5 flex items-center justify-between pt-2.5"
+          style={{ borderTop: '1px solid var(--border-0)' }}
+        >
+          {deal.isRotten ? (
+            <span
+              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded"
+              style={{ background: 'var(--semantic-danger-bg)', color: 'var(--semantic-danger)' }}
+            >
+              <AlertTriangle size={10} strokeWidth={2.5} /> Podrido
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-muted)' }}>
+              <Clock size={10} strokeWidth={2.5} /> {deal.daysInStage}d
+            </span>
+          )}
+          {deal.probability != null && (
+            <span
+              className="rounded px-1.5 py-0.5 text-[10px] font-bold"
+              style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)', border: '1px solid var(--border-0)' }}
+            >
+              {deal.probability}%
+            </span>
+          )}
         </div>
-      )}
-      
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-        {deal.isRotten ? (
-          <span className="flex items-center gap-1.5 text-xs font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
-            <AlertTriangle size={12} /> Podrido
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-            <Clock size={12} className="text-slate-400" /> {deal.daysInStage}d
-          </span>
-        )}
-        {deal.probability != null && (
-          <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
-            {deal.probability}%
-          </span>
-        )}
       </div>
     </div>
   )

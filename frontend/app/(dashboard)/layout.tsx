@@ -7,30 +7,76 @@ import { auth } from '@/lib/auth'
 import {
   Users, KanbanSquare, Webhook,
   Key, LogOut, LayoutDashboard, Layers,
+  Menu, X, ChevronRight, Moon, Sun,
 } from 'lucide-react'
 import clsx from 'clsx'
-
 import type { Role } from '@/types'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { useTheme } from 'next-themes'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/contacts', label: 'Contactos', icon: Users },
-  { href: '/deals', label: 'Deals', icon: KanbanSquare },
-  { href: '/pipelines', label: 'Pipelines', icon: Layers, roles: ['owner', 'admin'] as Role[] },
-  { href: '/webhooks', label: 'Webhooks', icon: Webhook, roles: ['owner', 'admin'] as Role[] },
-  { href: '/api-keys', label: 'API Keys', icon: Key, roles: ['owner', 'admin'] as Role[] },
-  { href: '/team', label: 'Equipo', icon: Users, roles: ['owner', 'admin'] as Role[] },
+  { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/contacts',  label: 'Contactos',  icon: Users },
+  { href: '/deals',     label: 'Deals',      icon: KanbanSquare },
+  { href: '/pipelines', label: 'Pipelines',  icon: Layers,       roles: ['owner', 'admin'] as Role[] },
+  { href: '/webhooks',  label: 'Webhooks',   icon: Webhook,      roles: ['owner', 'admin'] as Role[] },
+  { href: '/api-keys',  label: 'API Keys',   icon: Key,          roles: ['owner', 'admin'] as Role[] },
+  { href: '/team',      label: 'Equipo',     icon: Users,        roles: ['owner', 'admin'] as Role[] },
 ]
 
-export default function DashboardLayout({
-  children,
+// Mobile bottom tab: first 3 primary items + "More" overflow
+const MOBILE_TABS = ['/dashboard', '/contacts', '/deals']
+
+function NavLink({
+  href, label, icon: Icon, active, collapsed = false,
 }: {
-  children: React.ReactNode
+  href: string; label: string; icon: any; active: boolean; collapsed?: boolean
 }) {
-  const router = useRouter()
+  return (
+    <Link
+      href={href}
+      title={collapsed ? label : undefined}
+      className={clsx(
+        'group relative flex items-center rounded-md transition-colors',
+        collapsed ? 'h-10 w-10 justify-center' : 'gap-2.5 px-3 py-2 text-[13px]',
+        active ? 'font-semibold' : 'font-medium'
+      )}
+      style={{
+        color:      active ? 'var(--accent)'       : 'var(--ink-secondary)',
+        background: active ? 'var(--accent-muted)' : 'transparent',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'
+      }}
+      onMouseLeave={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      {/* CT pill indicator */}
+      {active && !collapsed && (
+        <span
+          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r"
+          style={{ background: 'var(--accent)' }}
+        />
+      )}
+      {active && collapsed && (
+        <span
+          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r"
+          style={{ background: 'var(--accent)' }}
+        />
+      )}
+      <Icon size={collapsed ? 16 : 15} strokeWidth={active ? 2.5 : 1.75} />
+      {!collapsed && label}
+    </Link>
+  )
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router   = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
+  const [user, setUser]         = useState<ReturnType<typeof auth.get>>(null)
   const [checking, setChecking] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     if (!auth.isLoggedIn()) {
@@ -41,108 +87,318 @@ export default function DashboardLayout({
     setChecking(false)
   }, [router])
 
+  // Close drawer on route change
+  useEffect(() => { setDrawerOpen(false) }, [pathname])
+
   function handleLogout() {
     auth.clear()
     router.push('/login')
   }
 
+  const visibleNav = navItems.filter(
+    (item) => !item.roles || item.roles.includes((user?.role ?? 'viewer') as Role)
+  )
+  const coreNav  = visibleNav.filter((i) => !i.roles)
+  const adminNav = visibleNav.filter((i) => i.roles)
+
+  const mobilePrimaryTabs = visibleNav.filter((i) => MOBILE_TABS.includes(i.href))
+  const moreItems         = visibleNav.filter((i) => !MOBILE_TABS.includes(i.href))
+
   return (
-    <div className="flex h-screen overflow-hidden bg-transparent text-slate-800 animate-fade-in">
+    <div
+      className="flex h-[100dvh] overflow-hidden"
+      style={{ background: 'var(--canvas)', color: 'var(--ink-primary)' }}
+    >
+
+      {/* ── TABLET icon sidebar (md only) ────────────────────────────────── */}
       <aside
-        className="z-10 isolate flex w-[280px] shrink-0 flex-col border-r shadow-[var(--shadow-office)]"
+        className="hidden md:flex lg:hidden z-20 w-14 shrink-0 flex-col items-center py-3 gap-1"
         style={{
-          background: 'var(--sidebar-background)',
-          borderColor: 'var(--panel-border)',
+          background:  'var(--surface-0)',
+          borderRight: '1px solid var(--border-1)',
         }}
       >
+        {/* Logo mark */}
         <div
-          className="flex items-center justify-between p-6"
-          style={{ borderBottom: '1px solid var(--panel-border)' }}
+          className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shrink-0"
+          style={{ background: 'var(--accent)' }}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-primary-800 text-lg font-bold text-white shadow-sm shadow-primary-700/30">
-              {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
-            </div>
-            <div className="flex min-w-0 flex-col justify-center">
-              <h1 className="truncate text-sm font-bold leading-tight tracking-tight text-slate-900">
-                {user?.workspaceName ?? 'CRM Studio'}
-              </h1>
-              <span className="mt-0.5 truncate text-xs font-medium text-slate-500">
-                {user?.email}
-              </span>
-              <span
-                className={clsx(
-                  'mt-2 w-fit',
-                  user?.role === 'owner' ? 'badge-owner' :
-                  user?.role === 'admin' ? 'badge-admin' :
-                  user?.role === 'member' ? 'badge-member' : 'badge-viewer'
-                )}
-              >
-                {user?.role || 'Viewer'}
-              </span>
-            </div>
-          </div>
+          {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
         </div>
 
-        <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-5">
-          {navItems
-            .filter((item) => !item.roles || item.roles.includes((user?.role ?? 'viewer') as Role))
-            .map((item) => {
-              const Icon = item.icon
-              const active = pathname.startsWith(item.href)
+        {[...coreNav, ...adminNav].map((item) => (
+          <NavLink
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={pathname.startsWith(item.href)}
+            collapsed
+          />
+        ))}
 
-              return (
-                <Link
+        <button
+          onClick={handleLogout}
+          title="Cerrar sesión"
+          className="mt-auto flex h-10 w-10 items-center justify-center rounded-md transition-colors"
+          style={{ color: 'var(--ink-tertiary)' }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color      = 'var(--semantic-danger)'
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color      = 'var(--ink-tertiary)'
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          <LogOut size={16} strokeWidth={1.75} />
+        </button>
+      </aside>
+
+      {/* ── DESKTOP full sidebar (lg+) ────────────────────────────────────── */}
+      <aside
+        className="hidden lg:flex z-20 w-[220px] shrink-0 flex-col"
+        style={{
+          background:  'var(--surface-0)',
+          borderRight: '1px solid var(--border-1)',
+        }}
+      >
+        {/* Workspace header */}
+        <div
+          className="flex items-center gap-3 px-4 py-3.5"
+          style={{ borderBottom: '1px solid var(--border-0)' }}
+        >
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold leading-tight" style={{ color: 'var(--ink-primary)', letterSpacing: '-0.02em' }}>
+              {user?.workspaceName ?? 'CRM Studio'}
+            </p>
+            <p className="truncate text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
+              {user?.email}
+            </p>
+          </div>
+          <span
+            className={clsx(
+              user?.role === 'owner' ? 'badge-owner' :
+              user?.role === 'admin' ? 'badge-admin' :
+              user?.role === 'member' ? 'badge-member' : 'badge-viewer'
+            )}
+          >
+            {user?.role ?? 'viewer'}
+          </span>
+        </div>
+
+        {/* Core nav */}
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
+          {coreNav.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={pathname.startsWith(item.href)}
+            />
+          ))}
+
+          {adminNav.length > 0 && (
+            <>
+              <div className="px-3 pb-1 pt-4">
+                <span className="section-label">Configuración</span>
+              </div>
+              {adminNav.map((item) => (
+                <NavLink
                   key={item.href}
                   href={item.href}
-                  className={clsx(
-                    'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300',
-                    active
-                      ? 'bg-primary-50 text-primary-700 shadow-sm shadow-primary-500/10 dark:bg-slate-600/95 dark:text-slate-50 dark:shadow-slate-950/25'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-primary-600 dark:text-slate-300 dark:hover:bg-slate-700/80 dark:hover:text-slate-50'
-                  )}
-                >
-                  <div
-                    className={clsx(
-                      'rounded-md p-1 transition-colors',
-                      active
-                        ? 'bg-primary-100 text-primary-700 dark:bg-slate-500 dark:text-slate-50'
-                        : 'bg-transparent text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 dark:text-slate-400 dark:group-hover:bg-slate-700/80 dark:group-hover:text-slate-50'
-                    )}
-                  >
-                    <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                  </div>
-                  {item.label}
-                </Link>
-              )
-            })}
+                  label={item.label}
+                  icon={item.icon}
+                  active={pathname.startsWith(item.href)}
+                />
+              ))}
+            </>
+          )}
         </nav>
 
-        <div className="mt-auto p-4">
+        {/* Logout */}
+        <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-0)' }}>
           <button
             onClick={handleLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all active:scale-[0.98] hover:bg-red-50 hover:text-red-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-red-950/40 dark:hover:text-red-200"
-            style={{ border: '1px solid var(--button-border)' }}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors"
+            style={{ color: 'var(--ink-tertiary)', background: 'transparent' }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget as HTMLElement).style.color      = 'var(--semantic-danger)'
+              ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.color      = 'var(--ink-tertiary)'
+              ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+            }}
           >
-            <LogOut size={16} />
-            Cerrar sesion
+            <LogOut size={15} strokeWidth={1.75} />
+            Cerrar sesión
           </button>
         </div>
       </aside>
 
-      <main className="relative flex flex-1 flex-col overflow-auto bg-[var(--background)]">
+      {/* ── MOBILE top header bar ─────────────────────────────────────────── */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex h-12 items-center justify-between px-4"
+        style={{ background: 'var(--surface-0)', borderBottom: '1px solid var(--border-1)' }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
+          </div>
+          <span className="text-[13px] font-bold truncate max-w-[140px]" style={{ color: 'var(--ink-primary)', letterSpacing: '-0.02em' }}>
+            {user?.workspaceName ?? 'CRM Studio'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Compact mobile toggle */}
+          <div className="scale-75 origin-right mr-1">
+            <ThemeToggle variant="inline" />
+          </div>
+          {moreItems.length > 0 && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+              style={{ color: 'var(--ink-secondary)' }}
+              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
+              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            >
+              <Menu size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── MOBILE drawer overlay ─────────────────────────────────────────── */}
+      {drawerOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-[60] flex items-end"
+          onClick={() => setDrawerOpen(false)}
+        >
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} />
+          <div
+            className="relative w-full animate-slide-up rounded-t-2xl p-5 pb-8"
+            style={{ background: 'var(--surface-0)', border: '1px solid var(--border-1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="section-label">Menú</p>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg"
+                style={{ color: 'var(--ink-tertiary)', background: 'var(--surface-2)' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* All nav items in drawer */}
+            <div className="space-y-1">
+              {visibleNav.map((item) => {
+                const Icon = item.icon
+                const active = pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center justify-between rounded-lg px-3 py-3 transition-colors"
+                    style={{
+                      color:      active ? 'var(--accent)'       : 'var(--ink-primary)',
+                      background: active ? 'var(--accent-muted)' : 'transparent',
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon size={16} strokeWidth={active ? 2.5 : 1.75} />
+                      <span className="text-[14px] font-semibold">{item.label}</span>
+                    </div>
+                    <ChevronRight size={14} style={{ color: 'var(--ink-muted)' }} />
+                  </Link>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-0)' }}>
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[14px] font-semibold transition-colors"
+                style={{ color: 'var(--semantic-danger)' }}
+              >
+                <LogOut size={16} />
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
+      <main
+        className="relative flex flex-1 flex-col overflow-auto"
+        style={{ background: 'var(--canvas)' }}
+      >
         {checking && (
           <div
-            className="absolute inset-0 z-[100] flex items-center justify-center animate-fade-in backdrop-blur-sm"
+            className="absolute inset-0 z-[100] flex items-center justify-center"
             style={{ background: 'var(--overlay)' }}
           >
-            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary-100 border-t-primary-600 shadow-lg" />
+            <div
+              className="h-5 w-5 animate-spin rounded-full border-2"
+              style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }}
+            />
           </div>
         )}
-        <div className="h-full flex-1 animate-slide-up" style={{ animationDelay: '50ms' }}>
+        {/* Mobile top spacer */}
+        <div className="md:hidden h-12 shrink-0" />
+        <div className="h-full flex-1 animate-fade-in">
           {children}
         </div>
+        {/* Mobile bottom spacer */}
+        <div className="md:hidden h-16 shrink-0" />
       </main>
+
+      {/* ── MOBILE bottom tab bar ─────────────────────────────────────────── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-16 px-2"
+        style={{
+          background:   'var(--surface-0)',
+          borderTop:    '1px solid var(--border-1)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        {mobilePrimaryTabs.map((item) => {
+          const Icon   = item.icon
+          const active = pathname.startsWith(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 rounded-lg transition-colors"
+              style={{ color: active ? 'var(--accent)' : 'var(--ink-tertiary)' }}
+            >
+              <Icon size={20} strokeWidth={active ? 2.5 : 1.75} />
+              <span className="text-[10px] font-semibold tracking-wide">{item.label}</span>
+            </Link>
+          )
+        })}
+        {/* "Más" button — opens drawer */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="flex flex-1 flex-col items-center justify-center gap-1 py-1 rounded-lg transition-colors"
+          style={{ color: drawerOpen ? 'var(--accent)' : 'var(--ink-tertiary)' }}
+        >
+          <Menu size={20} strokeWidth={1.75} />
+          <span className="text-[10px] font-semibold tracking-wide">Más</span>
+        </button>
+      </nav>
     </div>
   )
 }

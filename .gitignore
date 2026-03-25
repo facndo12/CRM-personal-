@@ -38,3 +38,15 @@ coverage/
 
 # Turbopack / Next.js cache
 .turbo/
+
+# Archivos de caché
+.eslintcache
+*.tsbuildinfo
+
+# Vercel
+.vercel/
+
+# Directorios de Inteligencia Artificial (opcional)
+.agents/
+.claude/
+.gemini/

@@ -4,16 +4,24 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { contactsApi } from '@/lib/api'
 import type { Contact, PaginatedResult } from '@/types'
-import { Search, Plus, Mail, Phone, Tag, Loader2, Users, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Mail, Phone, Tag, Loader2, Users, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import clsx from 'clsx'
 import Link from 'next/link'
 
-const STATUS_COLORS: Record<string, string> = {
-  LEAD:      'border-sky-400 bg-sky-200 text-sky-950 dark:border-slate-400/60 dark:bg-slate-500/25 dark:text-slate-100',
-  QUALIFIED: 'border-violet-400 bg-violet-200 text-violet-950 dark:border-slate-400/60 dark:bg-slate-500/25 dark:text-slate-100',
-  ACTIVE:    'border-emerald-400 bg-emerald-200 text-emerald-950 dark:border-emerald-300/30 dark:bg-emerald-400/15 dark:text-emerald-100',
-  CUSTOMER:  'border-green-400 bg-green-200 text-green-950 dark:border-emerald-300/30 dark:bg-emerald-400/15 dark:text-emerald-100',
-  CHURNED:   'border-rose-400 bg-rose-200 text-rose-950 dark:border-rose-300/30 dark:bg-rose-400/15 dark:text-rose-100',
+const STATUS_DOT: Record<string, string> = {
+  LEAD:      '#3b82f6',
+  QUALIFIED: '#8b5cf6',
+  ACTIVE:    '#22c55e',
+  CUSTOMER:  '#10b981',
+  CHURNED:   '#ef4444',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  LEAD:      'bg-blue-50 text-blue-700 border-blue-200',
+  QUALIFIED: 'bg-violet-50 text-violet-700 border-violet-200',
+  ACTIVE:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  CUSTOMER:  'bg-green-50 text-green-700 border-green-200',
+  CHURNED:   'bg-red-50 text-red-700 border-red-200',
 }
 
 const PAGE_SIZE = 20
@@ -31,7 +39,6 @@ export default function ContactsPage() {
     source:    'MANUAL',
   })
 
-  // Resetear página al buscar
   function handleSearch(value: string) {
     setSearch(value)
     setPage(0)
@@ -70,133 +77,161 @@ export default function ContactsPage() {
   })
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in p-6">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="mx-auto max-w-[1100px] animate-fade-in p-4 md:p-8">
+
+      {/* Header */}
+      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Directorio de Contactos</h1>
-          <p className="mt-1 font-medium text-slate-600">
-            Gestiona y administra {data?.total ?? 0} contactos en tu cartera.
+          <h1 className="page-title">Contactos</h1>
+          <p className="page-subtitle">
+            {data?.total ?? 0} contactos en tu cartera
           </p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
-          <Plus size={18} strokeWidth={2.5} />
-          Anadir Contacto
+        <button onClick={() => setShowForm(true)} className="btn-primary self-start sm:self-auto">
+          <Plus size={15} strokeWidth={2.5} />
+          Añadir contacto
         </button>
       </div>
 
-      <div className="relative mb-8 max-w-xl">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-sky-700/70 dark:text-slate-400" size={18} strokeWidth={2.5} />
+      {/* Search */}
+      <div className="relative mb-5 w-full max-w-md">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+          size={14}
+          style={{ color: 'var(--ink-tertiary)' }}
+        />
         <input
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Buscar por nombre, correo electronico o telefono..."
-          className="w-full rounded-xl border border-sky-200 bg-[#eef8ff] py-3 pl-11 pr-4 text-sm font-semibold text-slate-800 shadow-sm transition-all placeholder:text-sky-700/55 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/25 dark:border-slate-600/80 dark:bg-slate-800/95 dark:text-slate-100 dark:placeholder:text-slate-400"
+          placeholder="Buscar por nombre, email o teléfono..."
+          className="ctrl-input ctrl-input-icon"
         />
       </div>
 
+      {/* Create form */}
       {showForm && (
-        <div className="interactive-card mb-8 animate-slide-up border-l-4 border-l-primary-500 p-6">
-          <h3 className="mb-5 flex items-center gap-2 text-lg font-bold text-slate-900">
-            <Plus size={20} className="text-primary-500" strokeWidth={3} /> Cargar Nuevo Perfil
-          </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div
+          className="animate-slide-up interactive-card mb-6 p-5"
+          style={{ borderLeft: '2px solid var(--accent)' }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <p className="section-label">Nuevo contacto</p>
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded p-1 transition-colors"
+              style={{ color: 'var(--ink-tertiary)' }}
+              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
+              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
               { name: 'firstName', placeholder: 'Nombre *' },
               { name: 'lastName',  placeholder: 'Apellido' },
-              { name: 'email',     placeholder: 'Correo electronico' },
-              { name: 'phone',     placeholder: 'Numero de telefono' },
+              { name: 'email',     placeholder: 'Email' },
+              { name: 'phone',     placeholder: 'Teléfono' },
             ].map((field) => (
               <input
                 key={field.name}
                 placeholder={field.placeholder}
                 value={form[field.name as keyof typeof form]}
                 onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-                className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 dark:border-slate-600/80 dark:bg-slate-800/90 dark:text-slate-100 dark:placeholder:text-slate-400"
+                className="ctrl-input"
               />
             ))}
           </div>
-          <div className="mt-6 flex gap-3 border-t border-slate-200 pt-5 dark:border-slate-600/70">
+          <div className="mt-4 flex gap-2" style={{ borderTop: '1px solid var(--border-0)', paddingTop: '1rem' }}>
             <button
               onClick={() => createMutation.mutate(form)}
               disabled={!form.firstName || createMutation.isPending}
-              className="btn-primary w-full px-6 py-2.5 sm:w-auto"
+              className="btn-primary"
             >
-              {createMutation.isPending && <Loader2 size={16} className="animate-spin" />}
-              Guardar Perfil
+              {createMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+              Guardar
             </button>
-            <button onClick={() => setShowForm(false)} className="btn-secondary w-full px-6 py-2.5 sm:w-auto">
+            <button onClick={() => setShowForm(false)} className="btn-secondary">
               Cancelar
             </button>
           </div>
         </div>
       )}
 
+      {/* List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="animate-spin text-primary-500" size={40} />
+          <div
+            className="h-5 w-5 animate-spin rounded-full border-2"
+            style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }}
+          />
         </div>
       ) : data?.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-24 text-center dark:border-slate-600/70 dark:bg-slate-800/60">
-          <Users size={56} className="mx-auto mb-4 text-slate-400 dark:text-slate-500" strokeWidth={1.5} />
-          <p className="text-lg font-medium text-slate-600 dark:text-slate-300">
-            {search ? 'No se encontraron contactos' : 'Aun no hay contactos registrados'}
+        <div
+          className="flex flex-col items-center justify-center rounded-xl py-24 text-center"
+          style={{ border: '1px dashed var(--border-2)' }}
+        >
+          <Users size={40} strokeWidth={1.25} className="mb-3" style={{ color: 'var(--ink-muted)' }} />
+          <p className="text-sm font-medium" style={{ color: 'var(--ink-secondary)' }}>
+            {search ? 'No se encontraron contactos' : 'Aún no hay contactos'}
           </p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {search
-              ? `No hay resultados para "${search}"`
-              : 'Comenza cargando tu primer contacto usando el boton superior.'
-            }
+          <p className="mt-1 text-xs" style={{ color: 'var(--ink-tertiary)' }}>
+            {search ? `Sin resultados para "${search}"` : 'Comenzá cargando tu primer contacto.'}
           </p>
         </div>
       ) : (
         <>
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {(data?.items ?? []).map((contact) => (
               <Link
                 key={contact.id}
                 href={`/contacts/${contact.id}`}
-                className="interactive-card group flex flex-col gap-4 p-4 transition-colors hover:border-primary-300 dark:hover:border-slate-500/90 sm:flex-row sm:items-center"
+                className="interactive-card group flex items-center gap-4 px-5 py-3.5"
               >
-                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-300 bg-sky-200 text-sm font-black text-sky-950 shadow-sm dark:border-slate-500/80 dark:bg-slate-600 dark:text-slate-50">
-                  <span className="relative z-10">
-                    {contact.firstName[0]}
-                    {contact.lastName?.[0] ?? ''}
-                  </span>
+                {/* Avatar */}
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ background: 'var(--accent-muted)', color: 'var(--accent-text)' }}
+                >
+                  {contact.firstName[0]}{contact.lastName?.[0] ?? ''}
                 </div>
 
+                {/* Name + contact info */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <span className="truncate text-base font-bold tracking-tight text-slate-900 transition-colors group-hover:text-primary-700 dark:group-hover:text-slate-50">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
                       {contact.firstName} {contact.lastName}
                     </span>
-                    <span className={clsx(
-                      'rounded-md border px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest shadow-sm',
-                      STATUS_COLORS[contact.status] ?? 'border-slate-400 bg-slate-200 text-slate-900'
-                    )}>
+                    <span
+                      className={clsx(
+                        'rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                        STATUS_LABEL[contact.status] ?? 'border-zinc-200 bg-zinc-50 text-zinc-600'
+                      )}
+                    >
                       {contact.status}
                     </span>
                   </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                     {contact.email && (
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                        <Mail size={14} className="text-slate-500 transition-colors group-hover:text-primary-500 dark:text-slate-400" />
-                        {contact.email}
+                      <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
+                        <Mail size={11} /> {contact.email}
                       </span>
                     )}
                     {contact.phone && (
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                        <Phone size={14} className="text-slate-500 transition-colors group-hover:text-primary-500 dark:text-slate-400" />
-                        {contact.phone}
+                      <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
+                        <Phone size={11} /> {contact.phone}
                       </span>
                     )}
                   </div>
-
                   {contact.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Tag size={12} className="text-slate-500 dark:text-slate-400" />
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <Tag size={10} style={{ color: 'var(--ink-tertiary)' }} />
                       {contact.tags.map((tag) => (
-                        <span key={tag} className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-500/60 dark:bg-slate-600/60 dark:text-slate-100">
+                        <span
+                          key={tag}
+                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                          style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)', border: '1px solid var(--border-0)' }}
+                        >
                           {tag}
                         </span>
                       ))}
@@ -204,17 +239,24 @@ export default function ContactsPage() {
                   )}
                 </div>
 
-                <div className="flex min-w-22 shrink-0 flex-col items-center justify-center border-l border-slate-200 px-4 text-center dark:border-slate-600/70">
-                  <div className={clsx(
-                    'mb-0.5 text-2xl font-black',
-                    contact.score >= 70 ? 'text-emerald-600 dark:text-emerald-300' :
-                    contact.score >= 40 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300'
-                  )}>
+                {/* Score */}
+                <div
+                  className="flex flex-col items-center px-4 text-center"
+                  style={{ borderLeft: '1px solid var(--border-0)' }}
+                >
+                  <span
+                    className="data-num text-lg font-bold"
+                    style={{
+                      color: contact.score >= 70 ? 'var(--semantic-success)' :
+                             contact.score >= 40 ? 'var(--semantic-warning)' : 'var(--ink-tertiary)',
+                    }}
+                  >
                     {contact.score}
-                  </div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Score</div>
+                  </span>
+                  <span className="section-label" style={{ letterSpacing: '0.12em' }}>score</span>
                 </div>
 
+                {/* Delete */}
                 <button
                   onClick={(e) => {
                     e.preventDefault()
@@ -222,36 +264,48 @@ export default function ContactsPage() {
                       deleteMutation.mutate(contact.id)
                     }
                   }}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded opacity-0 transition-all group-hover:opacity-100"
+                  style={{ color: 'var(--ink-tertiary)' }}
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.color = 'var(--semantic-danger)'
+                    ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.color = 'var(--ink-tertiary)'
+                    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                  }}
                 >
-                  x
+                  <X size={13} />
                 </button>
               </Link>
             ))}
           </div>
 
-          {/* Paginación */}
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-5 dark:border-slate-600/70">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Página <span className="font-semibold text-slate-700 dark:text-slate-200">{page + 1}</span> de{' '}
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{totalPages}</span>
+            <div
+              className="mt-6 flex items-center justify-between pt-5"
+              style={{ borderTop: '1px solid var(--border-0)' }}
+            >
+              <p className="text-[12px]" style={{ color: 'var(--ink-tertiary)' }}>
+                Página <span style={{ color: 'var(--ink-primary)', fontWeight: 600 }}>{page + 1}</span> de{' '}
+                <span style={{ color: 'var(--ink-primary)', fontWeight: 600 }}>{totalPages}</span>
                 {' '}· {data?.total} contactos
               </p>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="btn-secondary !py-1.5 !px-3 !text-[12px] disabled:opacity-40"
                 >
-                  <ChevronLeft size={16} /> Anterior
+                  <ChevronLeft size={13} /> Anterior
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="btn-secondary !py-1.5 !px-3 !text-[12px] disabled:opacity-40"
                 >
-                  Siguiente <ChevronRight size={16} />
+                  Siguiente <ChevronRight size={13} />
                 </button>
               </div>
             </div>
