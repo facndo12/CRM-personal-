@@ -22,23 +22,20 @@ export default function DealsPage() {
 
   if (isLoading || pipelines?.length === 1) {
     return (
-      <div className="flex h-[70vh] items-center justify-center">
-        <div
-          className="h-5 w-5 animate-spin rounded-full border-2"
-          style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }}
-        />
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin" size={24} style={{ color: 'var(--accent)' }} />
       </div>
     )
   }
 
   return (
-    <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
-      <div className="mb-8">
+    <div className="animate-fade-in p-4 md:p-8 pb-20 md:pb-8 max-w-[900px] mx-auto">
+      <div className="mb-6 md:mb-8">
         <h1 className="page-title">Embudos de Ventas</h1>
-        <p className="page-subtitle">Seleccioná un pipeline para administrar tus negocios</p>
+        <p className="page-subtitle">Seleccioná un pipeline</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
         {pipelines?.map((pipeline: any) => (
           <button
             key={pipeline.id}

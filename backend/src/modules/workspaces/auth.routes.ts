@@ -1,12 +1,42 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../../core/database'
 import { z } from 'zod'
 import { AuthService } from '../../core/auth/auth.service'
 import { requireRole } from '../../core/auth/require-role'
 import { INVITABLE_ROLES } from '../../core/auth/roles'
 import { authenticate } from '../../core/auth/auth.service'
+import { config } from '../../core/config'
+import { generateCsrfToken, CSRF_HEADER_NAME } from '../../core/security/csrf-utils'
+
+function setAuthCookie(reply: FastifyReply, token: string) {
+  const isProduction = process.env.NODE_ENV === 'production'
+  reply.setCookie('crm_token', token, {
+    path: '/',
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'strict' : 'lax',
+    maxAge: 7 * 24 * 60 * 60,
+    domain: config.COOKIE_DOMAIN,
+  })
+}
+
+function clearAuthCookie(reply: FastifyReply) {
+  reply.clearCookie('crm_token', {
+    path: '/',
+    domain: config.COOKIE_DOMAIN,
+  })
+}
 
 const authService = new AuthService()
+
+export async function authCsrfRoutes(app: FastifyInstance) {
+  // ─── GET /auth/csrf-token ──────────────────────────────────────
+  // Returns a self-contained CSRF token in the response body
+  app.get('/csrf-token', async (req, reply) => {
+    const { token } = generateCsrfToken(config.JWT_SECRET)
+    return reply.send({ csrfToken: token })
+  })
+}
 
 export async function authRoutes(app: FastifyInstance) {
 
@@ -40,6 +70,12 @@ export async function authRoutes(app: FastifyInstance) {
       type:        'access',
     }, { expiresIn: '7d' })
 
+    // Guardar token en cookie httpOnly además del response
+    setAuthCookie(reply, token)
+
+    // Generate CSRF token for the response
+    const { token: csrfToken } = generateCsrfToken(config.JWT_SECRET)
+
     return reply.status(201).send({
       user: {
         id:        user.id,
@@ -51,7 +87,8 @@ export async function authRoutes(app: FastifyInstance) {
         name: workspace.name,
         slug: workspace.slug,
       },
-      accessToken: token,
+      accessToken: token, // Para backward compatibility con localStorage
+      csrfToken, // Return CSRF token for frontend to store
     })
   })
 
@@ -80,11 +117,18 @@ export async function authRoutes(app: FastifyInstance) {
       type:        'access',
     }, { expiresIn: '7d' })
 
+    // Guardar token en cookie httpOnly además del response
+    setAuthCookie(reply, token)
+
+    // Generate CSRF token for the response
+    const { token: csrfToken } = generateCsrfToken(config.JWT_SECRET)
+
     return reply.send({
       user:        result.user,
       workspace:   result.workspace,
       role:        result.role,
-      accessToken: token,
+      accessToken: token, // Para backward compatibility con localStorage
+      csrfToken, // Return CSRF token for frontend to store
     })
   })
 
@@ -240,15 +284,21 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.send({ message: 'Si el email existe, recibirás un link de recuperación.' })
     }
 
-    // Generar token seguro
-    const crypto      = await import('crypto')
-    const resetToken  = crypto.randomBytes(32).toString('hex')
-    const expiry      = new Date(Date.now() + 1000 * 60 * 60) // 1 hora
+    const crypto = await import('crypto')
+    
+    // Generar token público (el que va en la URL) y hash para guardar en DB
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex')
+    
+    const expiry = new Date(Date.now() + 1000 * 60 * 60) // 1 hora
 
     await db.user.update({
       where: { id: user.id },
       data: {
-        resetToken,
+        resetToken:       tokenHash, // Guardamos el hash, no el token
         resetTokenExpiry: expiry,
       },
     })
@@ -286,10 +336,16 @@ export async function authRoutes(app: FastifyInstance) {
       password: z.string().min(8),
     }).parse(req.body)
 
+    const crypto = await import('crypto')
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex')
+
     const user = await db.user.findFirst({
       where: {
-        resetToken:       token,
-        resetTokenExpiry: { gt: new Date() }, // Token no expirado
+        resetToken:       tokenHash,
+        resetTokenExpiry: { gt: new Date() },
       },
     })
 
@@ -303,6 +359,7 @@ export async function authRoutes(app: FastifyInstance) {
     const bcrypt      = await import('bcryptjs')
     const passwordHash = await bcrypt.hash(password, 12)
 
+    // Invalidar token INMEDIATAMENTE después de usarlo (one-time use)
     await db.user.update({
       where: { id: user.id },
       data: {
@@ -313,5 +370,12 @@ export async function authRoutes(app: FastifyInstance) {
     })
 
     return reply.send({ message: 'Contraseña actualizada correctamente.' })
+  })
+
+  // ─── POST /auth/logout ─────────────────────────────────────────
+  // Limpia la cookie de autenticación
+  app.post('/logout', async (req, reply) => {
+    clearAuthCookie(reply)
+    return reply.send({ message: 'Sesión cerrada correctamente.' })
   })
 }

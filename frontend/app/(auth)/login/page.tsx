@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -24,13 +24,14 @@ export default function LoginPage() {
       const data = res.data
 
       auth.save({
-        token:         data.accessToken,
+        token:         res.data.accessToken,
         userId:        data.user.id,
         workspaceId:   data.workspace.id,
         role:          data.role,
         firstName:     data.user.firstName,
         email:         data.user.email,
         workspaceName: data.workspace.name,
+        csrfToken:     data.csrfToken,
       })
 
       router.push('/contacts')

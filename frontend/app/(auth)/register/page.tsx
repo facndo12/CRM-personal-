@@ -30,13 +30,14 @@ export default function RegisterPage() {
       const res  = await authApi.register(form)
       const data = res.data
       auth.save({
-        token:         data.accessToken,
+        token:         res.data.accessToken,
         userId:        data.user.id,
         workspaceId:   data.workspace.id,
         role:          'owner',
         firstName:     data.user.firstName,
         email:         data.user.email,
         workspaceName: data.workspace.name,
+        csrfToken:     data.csrfToken,
       })
       router.push('/contacts')
     } catch (err: any) {

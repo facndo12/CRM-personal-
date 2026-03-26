@@ -4,27 +4,26 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
+import { authApi } from '@/lib/api'
 import {
   Users, KanbanSquare, Webhook,
   Key, LogOut, LayoutDashboard, Layers,
-  Menu, X, ChevronRight, Moon, Sun,
+  Menu, X, ChevronRight,
 } from 'lucide-react'
 import clsx from 'clsx'
 import type { Role } from '@/types'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { useTheme } from 'next-themes'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/contacts',  label: 'Contactos',  icon: Users },
-  { href: '/deals',     label: 'Deals',      icon: KanbanSquare },
-  { href: '/pipelines', label: 'Pipelines',  icon: Layers,       roles: ['owner', 'admin'] as Role[] },
-  { href: '/webhooks',  label: 'Webhooks',   icon: Webhook,      roles: ['owner', 'admin'] as Role[] },
-  { href: '/api-keys',  label: 'API Keys',   icon: Key,          roles: ['owner', 'admin'] as Role[] },
-  { href: '/team',      label: 'Equipo',     icon: Users,        roles: ['owner', 'admin'] as Role[] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/contacts', label: 'Contactos', icon: Users },
+  { href: '/deals', label: 'Deals', icon: KanbanSquare },
+  { href: '/pipelines', label: 'Pipelines', icon: Layers, roles: ['owner', 'admin'] as Role[] },
+  { href: '/webhooks', label: 'Webhooks', icon: Webhook, roles: ['owner', 'admin'] as Role[] },
+  { href: '/api-keys', label: 'API Keys', icon: Key, roles: ['owner', 'admin'] as Role[] },
+  { href: '/team', label: 'Equipo', icon: Users, roles: ['owner', 'admin'] as Role[] },
 ]
 
-// Mobile bottom tab: first 3 primary items + "More" overflow
 const MOBILE_TABS = ['/dashboard', '/contacts', '/deals']
 
 function NavLink({
@@ -42,28 +41,15 @@ function NavLink({
         active ? 'font-semibold' : 'font-medium'
       )}
       style={{
-        color:      active ? 'var(--accent)'       : 'var(--ink-secondary)',
+        color: active ? 'var(--accent)' : 'var(--ink-secondary)',
         background: active ? 'var(--accent-muted)' : 'transparent',
       }}
-      onMouseEnter={(e) => {
-        if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'
-      }}
-      onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
-      }}
     >
-      {/* CT pill indicator */}
       {active && !collapsed && (
-        <span
-          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r"
-          style={{ background: 'var(--accent)' }}
-        />
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r" style={{ background: 'var(--accent)' }} />
       )}
       {active && collapsed && (
-        <span
-          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r"
-          style={{ background: 'var(--accent)' }}
-        />
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r" style={{ background: 'var(--accent)' }} />
       )}
       <Icon size={collapsed ? 16 : 15} strokeWidth={active ? 2.5 : 1.75} />
       {!collapsed && label}
@@ -72,9 +58,9 @@ function NavLink({
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router   = useRouter()
+  const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser]         = useState<ReturnType<typeof auth.get>>(null)
+  const [user, setUser] = useState<ReturnType<typeof auth.get>>(null)
   const [checking, setChecking] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -87,10 +73,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setChecking(false)
   }, [router])
 
-  // Close drawer on route change
   useEffect(() => { setDrawerOpen(false) }, [pathname])
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await authApi.logout()
+    } catch { /* continue */ }
     auth.clear()
     router.push('/login')
   }
@@ -98,224 +86,108 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const visibleNav = navItems.filter(
     (item) => !item.roles || item.roles.includes((user?.role ?? 'viewer') as Role)
   )
-  const coreNav  = visibleNav.filter((i) => !i.roles)
+  const coreNav = visibleNav.filter((i) => !i.roles)
   const adminNav = visibleNav.filter((i) => i.roles)
-
   const mobilePrimaryTabs = visibleNav.filter((i) => MOBILE_TABS.includes(i.href))
-  const moreItems         = visibleNav.filter((i) => !MOBILE_TABS.includes(i.href))
 
   return (
     <div
-      className="flex h-[100dvh] overflow-hidden"
+      className="flex h-screen overflow-hidden"
       style={{ background: 'var(--canvas)', color: 'var(--ink-primary)' }}
     >
-
-      {/* ── TABLET icon sidebar (md only) ────────────────────────────────── */}
+      {/* ── TABLET sidebar (md only) ── */}
       <aside
-        className="hidden md:flex lg:hidden z-20 w-14 shrink-0 flex-col items-center py-3 gap-1"
-        style={{
-          background:  'var(--surface-0)',
-          borderRight: '1px solid var(--border-1)',
-        }}
+        className="hidden md:flex lg:hidden w-14 shrink-0 flex-col items-center py-3 gap-1 z-20"
+        style={{ background: 'var(--surface-0)', borderRight: '1px solid var(--border-1)' }}
       >
-        {/* Logo mark */}
-        <div
-          className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shrink-0"
-          style={{ background: 'var(--accent)' }}
-        >
-          {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shrink-0" style={{ background: 'var(--accent)' }}>
+          {user?.workspaceName?.[0]?.toUpperCase() ?? 'C'}
         </div>
-
         {[...coreNav, ...adminNav].map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            active={pathname.startsWith(item.href)}
-            collapsed
-          />
+          <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} active={pathname.startsWith(item.href)} collapsed />
         ))}
-
-        <button
-          onClick={handleLogout}
-          title="Cerrar sesión"
-          className="mt-auto flex h-10 w-10 items-center justify-center rounded-md transition-colors"
-          style={{ color: 'var(--ink-tertiary)' }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.color      = 'var(--semantic-danger)'
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.color      = 'var(--ink-tertiary)'
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-          }}
-        >
+        <button onClick={handleLogout} className="mt-auto flex h-10 w-10 items-center justify-center rounded-md transition-colors" style={{ color: 'var(--ink-tertiary)' }}>
           <LogOut size={16} strokeWidth={1.75} />
         </button>
       </aside>
 
-      {/* ── DESKTOP full sidebar (lg+) ────────────────────────────────────── */}
+      {/* ── DESKTOP sidebar (lg+) ── */}
       <aside
-        className="hidden lg:flex z-20 w-[220px] shrink-0 flex-col"
-        style={{
-          background:  'var(--surface-0)',
-          borderRight: '1px solid var(--border-1)',
-        }}
+        className="hidden lg:flex w-[220px] shrink-0 flex-col z-20"
+        style={{ background: 'var(--surface-0)', borderRight: '1px solid var(--border-1)' }}
       >
-        {/* Workspace header */}
-        <div
-          className="flex items-center gap-3 px-4 py-3.5"
-          style={{ borderBottom: '1px solid var(--border-0)' }}
-        >
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: 'var(--accent)' }}
-          >
-            {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
+        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--border-0)' }}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: 'var(--accent)' }}>
+            {user?.workspaceName?.[0]?.toUpperCase() ?? 'C'}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-bold leading-tight" style={{ color: 'var(--ink-primary)', letterSpacing: '-0.02em' }}>
-              {user?.workspaceName ?? 'CRM Studio'}
+            <p className="truncate text-[13px] font-bold leading-tight" style={{ color: 'var(--ink-primary)' }}>
+              {user?.workspaceName ?? 'CRM'}
             </p>
-            <p className="truncate text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-              {user?.email}
-            </p>
+            <p className="truncate text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>{user?.email}</p>
           </div>
-          <span
-            className={clsx(
-              user?.role === 'owner' ? 'badge-owner' :
-              user?.role === 'admin' ? 'badge-admin' :
-              user?.role === 'member' ? 'badge-member' : 'badge-viewer'
-            )}
-          >
+          <span className={user?.role === 'owner' ? 'badge-owner' : user?.role === 'admin' ? 'badge-admin' : user?.role === 'member' ? 'badge-member' : 'badge-viewer'}>
             {user?.role ?? 'viewer'}
           </span>
         </div>
 
-        {/* Core nav */}
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
           {coreNav.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              active={pathname.startsWith(item.href)}
-            />
+            <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} active={pathname.startsWith(item.href)} />
           ))}
-
           {adminNav.length > 0 && (
             <>
-              <div className="px-3 pb-1 pt-4">
-                <span className="section-label">Configuración</span>
-              </div>
+              <div className="px-3 pb-1 pt-4"><span className="section-label">Configuración</span></div>
               {adminNav.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={pathname.startsWith(item.href)}
-                />
+                <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} active={pathname.startsWith(item.href)} />
               ))}
             </>
           )}
         </nav>
 
-        {/* Logout */}
         <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-0)' }}>
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors"
-            style={{ color: 'var(--ink-tertiary)', background: 'transparent' }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLElement).style.color      = 'var(--semantic-danger)'
-              ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.color      = 'var(--ink-tertiary)'
-              ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-            }}
-          >
+          <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors" style={{ color: 'var(--ink-tertiary)' }}>
             <LogOut size={15} strokeWidth={1.75} />
             Cerrar sesión
           </button>
         </div>
       </aside>
 
-      {/* ── MOBILE top header bar ─────────────────────────────────────────── */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex h-12 items-center justify-between px-4"
-        style={{ background: 'var(--surface-0)', borderBottom: '1px solid var(--border-1)' }}
-      >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold text-white"
-            style={{ background: 'var(--accent)' }}
-          >
-            {user?.workspaceName ? user.workspaceName[0].toUpperCase() : 'C'}
+      {/* ── MOBILE header ── */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex h-12 items-center justify-between px-4" style={{ background: 'var(--surface-0)', borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+            {user?.workspaceName?.[0]?.toUpperCase() ?? 'C'}
           </div>
-          <span className="text-[13px] font-bold truncate max-w-[140px]" style={{ color: 'var(--ink-primary)', letterSpacing: '-0.02em' }}>
-            {user?.workspaceName ?? 'CRM Studio'}
+          <span className="text-[13px] font-bold truncate max-w-[120px]" style={{ color: 'var(--ink-primary)' }}>
+            {user?.workspaceName ?? 'CRM'}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Compact mobile toggle */}
-          <div className="scale-75 origin-right mr-1">
-            <ThemeToggle variant="inline" />
-          </div>
-          {moreItems.length > 0 && (
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-              style={{ color: 'var(--ink-secondary)' }}
-              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
-              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <Menu size={18} />
-            </button>
-          )}
+        <div className="flex items-center gap-1">
+          <ThemeToggle variant="inline" />
+          <button onClick={() => setDrawerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ color: 'var(--ink-secondary)' }}>
+            <Menu size={18} />
+          </button>
         </div>
       </div>
 
-      {/* ── MOBILE drawer overlay ─────────────────────────────────────────── */}
+      {/* ── MOBILE drawer ── */}
       {drawerOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-[60] flex items-end"
-          onClick={() => setDrawerOpen(false)}
-        >
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} />
-          <div
-            className="relative w-full animate-slide-up rounded-t-2xl p-5 pb-8"
-            style={{ background: 'var(--surface-0)', border: '1px solid var(--border-1)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="md:hidden fixed inset-0 z-[60] flex items-end" onClick={() => setDrawerOpen(false)}>
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
+          <div className="relative w-full rounded-t-2xl p-5 pb-8" style={{ background: 'var(--surface-0)', borderTop: '1px solid var(--border-1)', paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="section-label">Menú</p>
-              <button
-                onClick={() => setDrawerOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg"
-                style={{ color: 'var(--ink-tertiary)', background: 'var(--surface-2)' }}
-              >
+              <button onClick={() => setDrawerOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: 'var(--surface-2)', color: 'var(--ink-tertiary)' }}>
                 <X size={14} />
               </button>
             </div>
-
-            {/* All nav items in drawer */}
             <div className="space-y-1">
               {visibleNav.map((item) => {
                 const Icon = item.icon
                 const active = pathname.startsWith(item.href)
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center justify-between rounded-lg px-3 py-3 transition-colors"
-                    style={{
-                      color:      active ? 'var(--accent)'       : 'var(--ink-primary)',
-                      background: active ? 'var(--accent-muted)' : 'transparent',
-                    }}
-                  >
+                  <Link key={item.href} href={item.href} className="flex items-center justify-between rounded-lg px-3 py-3" style={{ color: active ? 'var(--accent)' : 'var(--ink-primary)', background: active ? 'var(--accent-muted)' : 'transparent' }}>
                     <div className="flex items-center gap-3">
                       <Icon size={16} strokeWidth={active ? 2.5 : 1.75} />
                       <span className="text-[14px] font-semibold">{item.label}</span>
@@ -325,13 +197,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )
               })}
             </div>
-
             <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-0)' }}>
-              <button
-                onClick={handleLogout}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[14px] font-semibold transition-colors"
-                style={{ color: 'var(--semantic-danger)' }}
-              >
+              <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-[14px] font-semibold" style={{ color: 'var(--semantic-danger)' }}>
                 <LogOut size={16} />
                 Cerrar sesión
               </button>
@@ -340,63 +207,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-      <main
-        className="relative flex flex-1 flex-col overflow-auto"
-        style={{ background: 'var(--canvas)' }}
-      >
+      {/* ── MAIN CONTENT ── */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: 'var(--canvas)' }}>
         {checking && (
-          <div
-            className="absolute inset-0 z-[100] flex items-center justify-center"
-            style={{ background: 'var(--overlay)' }}
-          >
-            <div
-              className="h-5 w-5 animate-spin rounded-full border-2"
-              style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }}
-            />
+          <div className="absolute inset-0 z-[100] flex items-center justify-center" style={{ background: 'var(--overlay)' }}>
+            <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }} />
           </div>
         )}
-        {/* Mobile top spacer */}
-        <div className="md:hidden h-12 shrink-0" />
-        <div className="h-full flex-1 animate-fade-in">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain md:pt-0 pt-12 pb-16 md:pb-0">
           {children}
         </div>
-        {/* Mobile bottom spacer */}
-        <div className="md:hidden h-16 shrink-0" />
       </main>
 
-      {/* ── MOBILE bottom tab bar ─────────────────────────────────────────── */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-16 px-2"
-        style={{
-          background:   'var(--surface-0)',
-          borderTop:    '1px solid var(--border-1)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
-      >
+      {/* ── MOBILE bottom nav ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-14" style={{ background: 'var(--surface-0)', borderTop: '1px solid var(--border-1)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {mobilePrimaryTabs.map((item) => {
-          const Icon   = item.icon
+          const Icon = item.icon
           const active = pathname.startsWith(item.href)
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-1 rounded-lg transition-colors"
-              style={{ color: active ? 'var(--accent)' : 'var(--ink-tertiary)' }}
-            >
+            <Link key={item.href} href={item.href} className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5" style={{ color: active ? 'var(--accent)' : 'var(--ink-tertiary)' }}>
               <Icon size={20} strokeWidth={active ? 2.5 : 1.75} />
-              <span className="text-[10px] font-semibold tracking-wide">{item.label}</span>
+              <span className="text-[10px] font-semibold">{item.label}</span>
             </Link>
           )
         })}
-        {/* "Más" button — opens drawer */}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="flex flex-1 flex-col items-center justify-center gap-1 py-1 rounded-lg transition-colors"
-          style={{ color: drawerOpen ? 'var(--accent)' : 'var(--ink-tertiary)' }}
-        >
+        <button onClick={() => setDrawerOpen(true)} className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5" style={{ color: 'var(--ink-tertiary)' }}>
           <Menu size={20} strokeWidth={1.75} />
-          <span className="text-[10px] font-semibold tracking-wide">Más</span>
+          <span className="text-[10px] font-semibold">Más</span>
         </button>
       </nav>
     </div>

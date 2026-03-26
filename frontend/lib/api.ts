@@ -11,33 +11,119 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
-// Interceptor — agrega el token JWT automáticamente a cada request
-// Sin esto tendrías que pasarlo manualmente en cada llamada
-api.interceptors.request.use((config) => {
-  const token = auth.getToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+async function refreshCsrfToken(): Promise<string | null> {
+  try {
+    const res = await axios.get(`${BASE_URL}/auth/csrf-token`, {
+      withCredentials: true,
+    })
+    const token = res.data.csrfToken
+    if (token) {
+      // Update the stored auth data with the new CSRF token
+      const stored = auth.get()
+      if (stored) {
+        auth.save({ ...stored, csrfToken: token })
+      }
+    }
+    return token
+  } catch {
+    return null
   }
+}
+
+function getCsrfToken(): string | null {
+  return auth.getCsrfToken()
+}
+
+// Interceptor — agrega el token JWT y CSRF automáticamente a cada request
+// Usa cookie si existe (httpOnly), sino Authorization header (localStorage)
+api.interceptors.request.use(async (config) => {
+  const cookieToken = getCookie('crm_token')
+  if (!cookieToken) {
+    const token = auth.getToken?.() ?? localStorage.getItem('crm_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+
+  if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
+    const isPublicRoute =
+      config.url?.includes('/auth/login') ||
+      config.url?.includes('/auth/register') ||
+      config.url?.includes('/auth/forgot-password') ||
+      config.url?.includes('/auth/reset-password')
+
+    if (!isPublicRoute) {
+      const storedCsrf = getCsrfToken()
+      if (storedCsrf) {
+        config.headers['x-csrf-token'] = storedCsrf
+      } else if (auth.isLoggedIn()) {
+        const newToken = await refreshCsrfToken()
+        if (newToken) {
+          config.headers['x-csrf-token'] = newToken
+        }
+      }
+    }
+  }
+
   return config
 })
 
+// Track retry attempts to prevent infinite loops
+const retryMap = new Map<string, number>()
+
 // Interceptor de respuesta — maneja errores globalmente
 // Si el token expiró (401), limpia la sesión y redirige al login.
-// Omitimos la redirección si el error de auth proviene del propio login.
+// Si falla CSRF, refresca el token y reintenta una vez.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const isAuthRoute = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')
-    
+  async (error) => {
+    const config = error.config
+    if (!config) return Promise.reject(error)
+
+    const isAuthRoute = config.url?.includes('/auth/login') || 
+                        config.url?.includes('/auth/register') ||
+                        config.url?.includes('/auth/logout')
+
     if (error.response?.status === 401 && !isAuthRoute) {
       auth.clear()
       window.location.href = '/login'
+      return Promise.reject(error)
     }
+
+    // CSRF error — refresh token and retry once
+    if (error.response?.status === 403 && error.response?.data?.error === 'CSRF_ERROR') {
+      const retryKey = config.url + config.method
+      const retries = retryMap.get(retryKey) ?? 0
+      
+      if (retries < 1) {
+        retryMap.set(retryKey, retries + 1)
+        
+        // Refresh the CSRF token
+        const newToken = await refreshCsrfToken()
+        if (newToken) {
+          config.headers['x-csrf-token'] = newToken
+          return api(config)
+        }
+      }
+      retryMap.delete(retryKey)
+    }
+    
     return Promise.reject(error)
   }
 )
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() ?? null
+  }
+  return null
+}
 
 // ─── Auth ──────────────────────────────────────────────────────────
 export const authApi = {
@@ -67,6 +153,8 @@ export const authApi = {
     api.post('/auth/forgot-password', { email }),
   resetPassword: (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }),
+
+  logout: () => api.post('/auth/logout'),
 }
 
 // ─── Contactos ────────────────────────────────────────────────────

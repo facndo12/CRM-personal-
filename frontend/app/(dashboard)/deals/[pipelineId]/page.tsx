@@ -24,8 +24,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Loader2, Plus, DollarSign, Clock, AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
+import { Avatar } from '@/components/ui/avatar'
 
-// ─── Tarjeta ─────────────────────────────────────────────────────
 function DealCard({ deal }: { deal: KanbanCard }) {
   const {
     attributes, listeners, setNodeRef,
@@ -38,20 +38,16 @@ function DealCard({ deal }: { deal: KanbanCard }) {
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        background: 'var(--surface-0)',
-        borderColor: isDragging ? 'var(--accent)' : 'var(--border-1)',
-        boxShadow: isDragging ? '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' : 'none',
       }}
       {...attributes}
       className={clsx(
-        'interactive-card flex overflow-hidden border transition-all duration-200 group relative',
-        isDragging ? 'opacity-90 z-50 ring-2 ring-violet-500/20' : ''
+        'interactive-card flex overflow-hidden transition-all duration-200 group relative',
+        isDragging ? 'opacity-60 z-50 ring-2' : ''
       )}
     >
-      {/* Drag handle grip area — 6 dots pattern */}
       <div
         {...listeners}
-        className="flex w-6 shrink-0 cursor-grab items-start justify-center pt-3 pb-2 transition-colors active:cursor-grabbing hover:bg-black/[0.02] dark:hover:bg-white/[0.02] touch-none"
+        className="flex w-6 shrink-0 cursor-grab items-start justify-center pt-3 pb-2 transition-colors active:cursor-grabbing touch-none"
         style={{ borderRight: '1px solid var(--border-0)' }}
       >
         <div className="grid grid-cols-2 gap-[2px] opacity-40 group-hover:opacity-100 transition-opacity">
@@ -68,7 +64,7 @@ function DealCard({ deal }: { deal: KanbanCard }) {
 
         {deal.value && (
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="text-[12px] font-bold tracking-tight" style={{ color: 'var(--semantic-success)' }}>
+            <span className="text-[12px] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
               ${deal.value.toLocaleString()} {deal.currency}
             </span>
           </div>
@@ -83,7 +79,7 @@ function DealCard({ deal }: { deal: KanbanCard }) {
               className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded"
               style={{ background: 'var(--semantic-danger-bg)', color: 'var(--semantic-danger)' }}
             >
-              <AlertTriangle size={10} strokeWidth={2.5} /> Podrido
+              <AlertTriangle size={10} strokeWidth={2.5} /> Stale
             </span>
           ) : (
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-muted)' }}>
@@ -104,7 +100,6 @@ function DealCard({ deal }: { deal: KanbanCard }) {
   )
 }
 
-// ─── Columna droppable ────────────────────────────────────────────
 function KanbanColumnComponent({
   column,
   onAddDeal,
@@ -112,43 +107,55 @@ function KanbanColumnComponent({
   column: KanbanColumn
   onAddDeal: (stageId: string) => void
 }) {
-  // useDroppable hace que la columna sea una zona donde se pueden soltar cards
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id })
 
   return (
-    <div className="shrink-0 w-80 flex flex-col bg-slate-50/80 rounded-2xl border border-slate-200/60 shadow-sm backdrop-blur-sm animate-fade-in relative max-h-full">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-200/60 bg-white/60 rounded-t-2xl sticky top-0 z-10">
+    <div className="shrink-0 w-80 flex flex-col rounded-xl border max-h-full animate-fade-in" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}>
+      <div className="p-4 border-b" style={{ borderColor: 'var(--border-0)' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-3 h-3 rounded-full shadow-inner border border-black/5" style={{ backgroundColor: column.stage.color }} />
-            <span className="text-slate-900 text-sm font-extrabold tracking-tight">{column.stage.name}</span>
-            <span className="bg-white border border-slate-200 text-slate-600 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm">
+            <div className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: column.stage.color }} />
+            <span className="text-sm font-bold tracking-tight" style={{ color: 'var(--ink-primary)' }}>{column.stage.name}</span>
+            <span
+              className="font-bold text-[10px] px-2 py-0.5 rounded-full"
+              style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}
+            >
               {column.count}
             </span>
           </div>
           <button
             onClick={() => onAddDeal(column.stage.id)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+            style={{ color: 'var(--ink-tertiary)' }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--accent-muted)'
+              ;(e.currentTarget as HTMLElement).style.color = 'var(--accent)'
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent'
+              ;(e.currentTarget as HTMLElement).style.color = 'var(--ink-tertiary)'
+            }}
             title="Crear negocio en esta etapa"
           >
             <Plus size={16} strokeWidth={2.5}/>
           </button>
         </div>
         {column.totalValue > 0 && (
-          <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
+          <p className="text-xs font-bold mt-2 flex items-center gap-1" style={{ color: 'var(--accent)' }}>
             <DollarSign size={12} strokeWidth={2.5}/> {column.totalValue.toLocaleString()}
           </p>
         )}
       </div>
 
-      {/* Zona droppable — se pone azulada cuando arrastrás encima */}
       <div
         ref={setNodeRef}
         className={clsx(
-          'flex-1 p-3 space-y-3 min-h-[150px] rounded-b-2xl transition-all duration-300 overflow-y-auto',
-          isOver ? 'bg-primary-50 border-2 border-dashed border-primary-300' : 'border-2 border-transparent'
+          'flex-1 p-3 space-y-3 min-h-[150px] transition-all duration-300 overflow-y-auto'
         )}
+        style={{
+          background: isOver ? 'var(--accent-muted)' : 'transparent',
+          borderRadius: '0 0 0.75rem 0.75rem',
+        }}
       >
         <SortableContext
           items={column.deals.map((d) => d.id)}
@@ -163,7 +170,6 @@ function KanbanColumnComponent({
   )
 }
 
-// ─── Modal crear deal ─────────────────────────────────────────────
 function CreateDealModal({
   pipelineId,
   stageId,
@@ -187,44 +193,48 @@ function CreateDealModal({
   })
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 w-full max-w-md animate-slide-up">
-        <h3 className="text-slate-900 font-extrabold text-xl mb-6 tracking-tight flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-600 p-1.5 rounded-lg"><Plus size={20} strokeWidth={3}/></span>
-            Nuevo Negocio
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
+      <div
+        className="relative w-full max-w-md rounded-xl border shadow-2xl p-6 animate-slide-up"
+        style={{ background: 'var(--surface-0)', borderColor: 'var(--border-1)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold mb-6 flex items-center gap-2" style={{ color: 'var(--ink-primary)' }}>
+          <span className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+            <Plus size={20} strokeWidth={3}/>
+          </span>
+          Nuevo Negocio
         </h3>
         <div className="space-y-4">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Título del deal (ej: Acme Corp) *"
-            className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
+            className="ctrl-input"
             autoFocus
           />
           <div className="relative">
-            <DollarSign size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink-tertiary)' }} />
             <input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="Monto estimado (opcional)"
-                type="number"
-                className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Monto estimado (opcional)"
+              type="number"
+              className="ctrl-input !pl-10"
             />
           </div>
         </div>
-        <div className="flex gap-3 mt-8 pt-5 border-t border-slate-100">
+        <div className="flex gap-3 mt-8 pt-5" style={{ borderTop: '1px solid var(--border-0)' }}>
           <button
             onClick={() => mutation.mutate()}
             disabled={!title || mutation.isPending}
             className="btn-primary flex-1 py-2.5"
           >
             {mutation.isPending && <Loader2 size={16} className="animate-spin" />}
-            Agregar y guardar
+            Agregar
           </button>
-          <button
-            onClick={onClose}
-            className="btn-secondary flex-1 py-2.5"
-          >
+          <button onClick={onClose} className="btn-secondary flex-1 py-2.5">
             Cancelar
           </button>
         </div>
@@ -233,7 +243,6 @@ function CreateDealModal({
   )
 }
 
-// ─── Página Kanban ────────────────────────────────────────────────
 export default function KanbanPage() {
   const { pipelineId } = useParams<{ pipelineId: string }>()
   const queryClient = useQueryClient()
@@ -242,17 +251,12 @@ export default function KanbanPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150,
-        tolerance: 5,
-      },
-    })
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   )
 
   const { data: board, isLoading } = useQuery<KanbanBoard>({
     queryKey: ['kanban', pipelineId],
-    queryFn:  () => dealsApi.getKanban(pipelineId).then((r) => r.data),
+    queryFn: () => dealsApi.getKanban(pipelineId!).then((r) => r.data),
   })
 
   const moveMutation = useMutation({
@@ -270,10 +274,6 @@ export default function KanbanPage() {
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    console.log('dragEnd', {
-      activeId: event.active.id,
-      overId:   event.over?.id,
-    })
     const { active, over } = event
     setActiveId(null)
     if (!over || !board) return
@@ -281,36 +281,22 @@ export default function KanbanPage() {
     const dealId = active.id as string
     const overId  = over.id as string
 
-    // Buscar la columna origen del deal
-    const sourceColumn = board.columns.find((c) => c.deals.some((d) => d.id === dealId))
-    if (!sourceColumn) return
-
-    // Determinar columna destino:
-    // El over puede ser el ID de una stage (columna) o el ID de un deal
     let targetColumn = board.columns.find((c) => c.stage.id === overId)
-
-    // Si no es una columna, es un deal — buscar a qué columna pertenece
     if (!targetColumn) {
       targetColumn = board.columns.find((c) => c.deals.some((d) => d.id === overId))
     }
-
     if (!targetColumn) return
 
-    // Calcular posición dentro de la columna destino
     const overDealIndex = targetColumn.deals.findIndex((d) => d.id === overId)
     const targetPosition = overDealIndex === -1 ? targetColumn.deals.length : overDealIndex
 
-    moveMutation.mutate({
-      dealId,
-      stageId:  targetColumn.stage.id,
-      position: targetPosition,
-    })
+    moveMutation.mutate({ dealId, stageId: targetColumn.stage.id, position: targetPosition })
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
+        <Loader2 className="animate-spin" style={{ color: 'var(--accent)' }} size={32} />
       </div>
     )
   }
@@ -321,15 +307,17 @@ export default function KanbanPage() {
   const totalValue = board.columns.reduce((s, c) => s + c.totalValue, 0)
 
   return (
-    <div className="flex flex-col h-full bg-white relative animate-fade-in">
-      <div className="px-8 py-6 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white z-10 sticky top-0">
+    <div className="flex flex-col h-full relative animate-fade-in">
+      <div className="px-6 py-5 border-b flex items-center justify-between shrink-0" style={{ borderColor: 'var(--border-1)', background: 'var(--surface-0)' }}>
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{board.pipeline.name}</h1>
-          <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
-            <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-bold">{totalDeals} negocios en pipeline</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-md text-xs border border-emerald-100">
-                Monto proyectado: ${totalValue.toLocaleString()}
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--ink-primary)' }}>{board.pipeline.name}</h1>
+          <p className="text-sm font-medium mt-1 flex items-center gap-2" style={{ color: 'var(--ink-secondary)' }}>
+            <span className="px-2.5 py-1 rounded-md text-xs font-bold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}>
+              {totalDeals} negocios
+            </span>
+            <span style={{ color: 'var(--border-2)' }}>•</span>
+            <span className="font-bold px-2.5 py-1 rounded-md text-xs" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+              Monto: ${totalValue.toLocaleString()}
             </span>
           </p>
         </div>
@@ -337,7 +325,7 @@ export default function KanbanPage() {
 
       <div className="flex-1 overflow-x-auto p-4">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-3 h-full items-start">
+          <div className="flex gap-4 h-full items-start">
             {board.columns.map((column) => (
               <KanbanColumnComponent
                 key={column.stage.id}
@@ -349,14 +337,17 @@ export default function KanbanPage() {
 
           <DragOverlay>
             {activeDeal ? (
-              <div className="bg-white border-2 border-primary-500 rounded-xl p-4 w-80 shadow-2xl shadow-primary-500/30 rotate-3 cursor-grabbing scale-105 transition-transform flex flex-col gap-2 opacity-95">
-                <p className="text-slate-900 text-sm font-bold leading-snug">{activeDeal.title}</p>
+              <div
+                className="interactive-card p-4 w-80 shadow-lg cursor-grabbing rotate-3 scale-105 opacity-95"
+                style={{ borderColor: 'var(--accent)', boxShadow: '0 20px 40px -10px rgba(5, 150, 105, 0.3)' }}
+              >
+                <p className="text-sm font-bold leading-snug" style={{ color: 'var(--ink-primary)' }}>{activeDeal.title}</p>
                 {activeDeal.value && (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <div className="flex items-center justify-center bg-emerald-100 text-emerald-600 rounded-md w-5 h-5">
-                        <DollarSign size={12} strokeWidth={3} />
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <div className="flex items-center justify-center rounded-md w-5 h-5" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+                      <DollarSign size={12} strokeWidth={3} />
                     </div>
-                    <span className="text-emerald-700 text-xs font-bold">${activeDeal.value.toLocaleString()}</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>${activeDeal.value.toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -367,7 +358,7 @@ export default function KanbanPage() {
 
       {addingToStage && (
         <CreateDealModal
-          pipelineId={pipelineId}
+          pipelineId={pipelineId!}
           stageId={addingToStage}
           onClose={() => setAddingToStage(null)}
         />

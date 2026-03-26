@@ -3,14 +3,15 @@ import Fastify from 'fastify'
 import fastifyJwt from '@fastify/jwt'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
-
-import { initSentry, Sentry } from './core/monitoring/sentry'
+import fastifyCookie from '@fastify/cookie'
 import { config } from './core/config'
+import { verifyCsrfToken, CSRF_HEADER_NAME, CSRF_COOKIE_NAME } from './core/security/csrf-utils'
+import { initSentry, Sentry } from './core/monitoring/sentry'
 import { EventBus } from './core/event-bus'
 import { AppError } from './types'
 
 // Rutas
-import { authRoutes } from './modules/workspaces/auth.routes'
+import { authRoutes, authCsrfRoutes } from './modules/workspaces/auth.routes'
 import { contactRoutes } from './modules/contacts/contact.routes'
 import { dealRoutes } from './modules/deals/deal.routes'
 import { webhookRoutes } from './modules/webhooks/webhooks.routes'
@@ -63,22 +64,35 @@ export async function buildApp() {
         message: `Has superado el límite de ${context.max} peticiones. Espera un momento y vuelve a intentar.`,
       }
     }
-  })  // ─── Event Bus ─────────────────────────────────────────────────
+  })
+
+  // ─── Cookie plugin (requerido para httpOnly cookies) ──────────
+  await app.register(fastifyCookie)
+
+  // ─── Event Bus ─────────────────────────────────────────────────
   // Una sola instancia compartida por todos los módulos
   const eventBus = new EventBus(config.REDIS_URL)
 
   // ─── Plugins ───────────────────────────────────────────────────
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
-      const allowed = [
-        config.FRONTEND_URL,
-        'http://localhost:3001',
-        'http://localhost:3000',
-      ]
-      if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
-        cb(null, true)
+      if (process.env.NODE_ENV === 'production') {
+        if (!origin || origin === config.FRONTEND_URL) {
+          cb(null, true)
+        } else {
+          cb(new Error('Not allowed by CORS'), false)
+        }
       } else {
-        cb(new Error('Not allowed by CORS'), false)
+        const allowed = [
+          config.FRONTEND_URL,
+          'http://localhost:3001',
+          'http://localhost:3000',
+        ]
+        if (!origin || allowed.includes(origin)) {
+          cb(null, true)
+        } else {
+          cb(new Error('Not allowed by CORS'), false)
+        }
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -94,13 +108,14 @@ export async function buildApp() {
   // llegar al cliente — así la respuesta siempre tiene el
   // mismo formato sin importar dónde ocurrió el error
   app.setErrorHandler((error: any, req, reply) => {
+    // Log del error completo para debugging
+    req.log.error({ err: error }, 'Request error')
 
     // Reportar a Sentry solo errores inesperados 
     if (
       !(error instanceof AppError) &&
       error.name !== 'ZodError' &&
-      error.code !== 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' &&
-      error.code !== 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
+      !error.code?.startsWith('FST_JWT_')
     ) {
       Sentry.captureException(error)
     }
@@ -121,11 +136,8 @@ export async function buildApp() {
       })
     }
 
-    // Errores de JWT
-    if (
-      error.code === 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' ||
-      error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
-    ) {
+    // Errores de JWT (todos los códigos FST_JWT_*)
+    if (error.code?.startsWith('FST_JWT_')) {
       return reply.status(401).send({
         error: 'UNAUTHORIZED',
         message: error.message,
@@ -133,7 +145,6 @@ export async function buildApp() {
     }
 
     // Error genérico
-    req.log.error(error instanceof Error ? error.message : String(error))
     return reply.status(500).send({
       error: 'INTERNAL_ERROR',
       message: 'Error interno del servidor',
@@ -144,6 +155,49 @@ export async function buildApp() {
   const API = '/api/v1'
 
   await app.register(authRoutes, { prefix: `${API}/auth` })
+  await app.register(authCsrfRoutes, { prefix: `${API}/auth` })
+
+  // ─── Global CSRF Hook ─────────────────────────────────────────
+  // Verifica CSRF en todas las rutas que modifican estado
+  app.addHook('onRequest', async (req, reply) => {
+    const csrfMethods = ['POST', 'PUT', 'PATCH', 'DELETE']
+    
+    if (csrfMethods.includes(req.method)) {
+      const isPublicRoute = 
+        req.url.includes('/auth/login') ||
+        req.url.includes('/auth/register') ||
+        req.url.includes('/auth/forgot-password') ||
+        req.url.includes('/auth/reset-password') ||
+        req.url.includes('/health') ||
+        req.url.includes('/csrf-token')
+      
+      if (!isPublicRoute) {
+        const token = req.headers[CSRF_HEADER_NAME] as string | undefined
+        
+        if (!token) {
+          return reply.status(403).send({
+            error: 'CSRF_ERROR',
+            message: 'Token CSRF requerido. Refrescá la página e intentá de nuevo.',
+          })
+        }
+        
+        try {
+          const isValid = verifyCsrfToken(config.JWT_SECRET, token)
+          if (!isValid) {
+            return reply.status(403).send({
+              error: 'CSRF_ERROR',
+              message: 'Token CSRF inválido. Refrescá la página e intentá de nuevo.',
+            })
+          }
+        } catch {
+          return reply.status(403).send({
+            error: 'CSRF_ERROR',
+            message: 'Token CSRF inválido. Refrescá la página e intentá de nuevo.',
+          })
+        }
+      }
+    }
+  })
   await app.register(contactRoutes, { prefix: `${API}/contacts`, eventBus })
   await app.register(dealRoutes, { prefix: `${API}/deals`, eventBus })
   await app.register(webhookRoutes, { prefix: `${API}/webhooks` })

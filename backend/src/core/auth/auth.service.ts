@@ -314,8 +314,8 @@ export class AuthService {
   }
 
   // ─── Hook de autenticación ────────────────────────────────────────
-  // Acepta JWT o API Key. Método estático para no instanciar
-  // AuthService innecesariamente en cada request.
+  // Acepta JWT (cookie o Authorization header), API Key. 
+  // Método estático para no instanciar AuthService innecesariamente.
   static async authenticate(req: any): Promise<void> {
     // 1. Intentar API Key primero
     const rawKey = req.headers['x-api-key'] as string | undefined
@@ -324,7 +324,6 @@ export class AuthService {
       const result = await authService.verifyApiKey(rawKey)
       if (!result) throw { statusCode: 401, message: 'API Key inválida' }
 
-      // Simular el mismo formato que el JWT para que el resto del código funcione
       req.user = {
         sub:         'api-key',
         userId:      'api-key',
@@ -335,7 +334,18 @@ export class AuthService {
       return
     }
 
-    // 2. Si no hay API Key, intentar JWT
+    // 2. Intentar cookie crm_token
+    const cookieToken = req.cookies?.crm_token as string | undefined
+    if (cookieToken) {
+      try {
+        await req.jwtVerify(cookieToken)
+        return
+      } catch {
+        // Si falla la cookie, intentar con Authorization header
+      }
+    }
+
+    // 3. Si no hay cookie o falla, intentar Authorization header
     await req.jwtVerify()
   }
 }
