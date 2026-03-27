@@ -76,23 +76,19 @@ export async function buildApp() {
   // ─── Plugins ───────────────────────────────────────────────────
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
-      if (process.env.NODE_ENV === 'production') {
-        if (!origin || origin === config.FRONTEND_URL) {
-          cb(null, true)
-        } else {
-          cb(new Error('Not allowed by CORS'), false)
-        }
+      if (!origin) return cb(null, true)
+
+      const allowed = [
+        config.FRONTEND_URL,
+        'http://localhost:3001',
+        'http://localhost:3000',
+      ]
+
+      // Permitir URL exacta o cualquier subdominio de vercel.app
+      if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+        cb(null, true)
       } else {
-        const allowed = [
-          config.FRONTEND_URL,
-          'http://localhost:3001',
-          'http://localhost:3000',
-        ]
-        if (!origin || allowed.includes(origin)) {
-          cb(null, true)
-        } else {
-          cb(new Error('Not allowed by CORS'), false)
-        }
+        cb(new Error('Not allowed by CORS'), false)
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
