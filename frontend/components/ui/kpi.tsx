@@ -83,18 +83,18 @@ export function KpiCard({
         style={{ background: `linear-gradient(90deg, ${accentColor}, transparent)` }}
       />
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+      <div className="flex flex-wrap lg:flex-nowrap items-start justify-between gap-x-3 gap-y-2 relative">
+        <div className="flex-1 min-w-[120px] lg:min-w-0 relative z-10 w-full lg:w-auto">
+          <div className="flex items-center gap-2 mb-1 min-w-0 w-full">
             {icon && (
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center"
                 style={{ background: `var(--accent-muted)`, color: accentColor }}
               >
                 {icon}
               </div>
             )}
-            <span className="section-label">{label}</span>
+            <span className="section-label flex-1 truncate lg:whitespace-normal lg:line-clamp-none">{label}</span>
           </div>
 
           <p
@@ -104,9 +104,9 @@ export function KpiCard({
             {value}
           </p>
 
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
             {trend && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 {trendDirection === 'up' && (
                   <TrendingUp size={14} className="text-[var(--semantic-success)]" />
                 )}
@@ -118,7 +118,7 @@ export function KpiCard({
                 )}
                 <span
                   className={clsx(
-                    'text-xs font-semibold',
+                    'text-xs font-semibold shrink-0',
                     trendDirection === 'up' && 'text-[var(--semantic-success)]',
                     trendDirection === 'down' && 'text-[var(--semantic-danger)]',
                     trendDirection === 'neutral' && 'text-[var(--ink-tertiary)]'
@@ -127,14 +127,14 @@ export function KpiCard({
                   {trend.value > 0 ? '+' : ''}{trend.value}%
                 </span>
                 {trend.label && (
-                  <span className="text-[10px]" style={{ color: 'var(--ink-tertiary)' }}>
+                  <span className="text-[10px] shrink-0" style={{ color: 'var(--ink-tertiary)' }}>
                     {trend.label}
                   </span>
                 )}
               </div>
             )}
             {sub && !trend && (
-              <span className="text-xs" style={{ color: 'var(--ink-tertiary)' }}>
+              <span className="text-xs shrink-0" style={{ color: 'var(--ink-tertiary)' }}>
                 {sub}
               </span>
             )}
@@ -142,7 +142,7 @@ export function KpiCard({
         </div>
 
         {sparklineData && sparklineData.length > 1 && (
-          <div className="shrink-0">
+          <div className="shrink-0 w-full flex justify-end lg:w-auto lg:block mt-1 lg:mt-0 relative z-0 opacity-80 sm:opacity-100">
             <Sparkline data={sparklineData} width={70} height={36} color={accentColor} />
           </div>
         )}
