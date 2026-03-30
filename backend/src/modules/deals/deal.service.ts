@@ -7,7 +7,7 @@ import {
   type PaginationQuery,
   type PaginatedResult,
 } from '../../types'
-import { type Prisma } from '@prisma/client'
+import { type Prisma } from '../../generated/prisma'
 
 type Deal = Prisma.DealGetPayload<object>
 

@@ -8,7 +8,7 @@ import {
   NotFoundError,
   ForbiddenError,
 } from '../../types'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '../../generated/prisma'
 import type { Role } from './roles'
 
 

@@ -5,7 +5,7 @@ import { ContactService } from '../contacts/contact.service'
 import { db } from '../../core/database'
 import { UnauthorizedError, ActivityType } from '../../types'
 import type { EventBus } from '../../core/event-bus'
-import { type Prisma } from '@prisma/client'
+import { type Prisma } from '../../generated/prisma'
 
 const authService = new AuthService()
 
