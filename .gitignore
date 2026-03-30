@@ -15,7 +15,7 @@ build/
 .env*.local
 
 # Prisma generated client
-backend/node_modules/
+backend/src/generated/
 
 # Logs
 *.log
