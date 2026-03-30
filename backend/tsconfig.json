@@ -7,10 +7,10 @@
     "strict": false,
     "noImplicitAny": false,
     "esModuleInterop": true,
+    "moduleResolution": "node",
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],
     "noEmitOnError": false
   },
   "include": ["src/**/*", "scripts/**/*", "api/**/*"],
