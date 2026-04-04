@@ -11,12 +11,12 @@ export default function DealsPage() {
 
   const { data: pipelines, isLoading } = useQuery({
     queryKey: ['pipelines'],
-    queryFn:  () => pipelinesApi.list().then((r) => r.data),
+    queryFn: () => pipelinesApi.list().then((r) => r.data),
   })
 
   useEffect(() => {
     if (pipelines?.length === 1) {
-      router.push(`/deals/${pipelines[0].id}`)
+      router.push(`/leads/${pipelines[0].id}`)
     }
   }, [pipelines, router])
 
@@ -29,17 +29,17 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="animate-fade-in p-4 md:p-8 pb-20 md:pb-8 max-w-[900px] mx-auto">
+    <div className="mx-auto max-w-[900px] animate-fade-in p-4 pb-20 md:p-8 md:pb-8">
       <div className="mb-6 md:mb-8">
-        <h1 className="page-title">Embudos de Ventas</h1>
-        <p className="page-subtitle">Seleccioná un pipeline</p>
+        <h1 className="page-title">Leads</h1>
+        <p className="page-subtitle">Elegi el pipeline donde queres operar tus conversaciones entrantes.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+      <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
         {pipelines?.map((pipeline: any) => (
           <button
             key={pipeline.id}
-            onClick={() => router.push(`/deals/${pipeline.id}`)}
+            onClick={() => router.push(`/leads/${pipeline.id}`)}
             className="interactive-card group flex items-center justify-between p-5 text-left"
           >
             <div className="flex items-center gap-4">
@@ -53,12 +53,16 @@ export default function DealsPage() {
                 <p className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
                   {pipeline.name}
                 </p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-tertiary)' }}>
-                  {pipeline.stages.length} etapas
+                <p className="mt-0.5 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
+                  {pipeline.stages.length} stages
                 </p>
               </div>
             </div>
-            <ArrowRight size={14} style={{ color: 'var(--ink-tertiary)' }} className="group-hover:translate-x-0.5 transition-transform" />
+            <ArrowRight
+              size={14}
+              style={{ color: 'var(--ink-tertiary)' }}
+              className="transition-transform group-hover:translate-x-0.5"
+            />
           </button>
         ))}
       </div>

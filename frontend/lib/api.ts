@@ -8,6 +8,14 @@ import type {
 // Apunta al backend que ya tenemos corriendo
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
 
+export function resolveApiAssetUrl(value?: string | null) {
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  const apiOrigin = BASE_URL.replace(/\/api\/v1\/?$/, '')
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`
+  return `${apiOrigin}${normalizedPath}`
+}
+
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -281,6 +289,29 @@ export const dashboardApi = {
 }
 
 // ─── Equipo ────────────────────────────────────────────────────────
+export const whatsappApi = {
+  getSession: () =>
+    api.get('/whatsapp/session'),
+
+  connect: (data?: { mode?: 'qr' | 'pairing'; phoneNumber?: string }) =>
+    api.post('/whatsapp/connect', data ?? {}),
+
+  disconnect: () =>
+    api.post('/whatsapp/disconnect'),
+
+  listChats: (params?: { search?: string }) =>
+    api.get('/whatsapp/chats', { params }),
+
+  listMessages: (jid: string, params?: { limit?: number }) =>
+    api.get(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { params }),
+
+  syncHistory: (jid: string, params?: { count?: number }) =>
+    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/history`, undefined, { params }),
+
+  sendMessage: (jid: string, text: string) =>
+    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { text }),
+}
+
 export const teamApi = {
   list: () =>
     api.get('/auth/team'),

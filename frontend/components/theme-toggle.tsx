@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import clsx from 'clsx'
 
 export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline' }) {
+  const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -14,6 +16,10 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline
   }, [])
 
   const isDark = mounted && resolvedTheme === 'dark'
+  const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password'].some((path) =>
+    pathname === path || pathname.startsWith(`${path}/`)
+  )
+  const fixedClassName = isAuthPage ? 'theme-toggle-auth' : 'theme-toggle-dashboard'
 
   // Render a fixed-size skeleton before hydration to prevent layout shift
   if (!mounted) {
@@ -21,7 +27,7 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline
       <div
         className={clsx(
           "flex h-9 w-[10.5rem] items-center rounded-full",
-          variant === 'fixed' ? "fixed right-4 top-4 z-[120] hidden md:flex" : ""
+          variant === 'fixed' ? `fixed top-4 z-[120] hidden md:flex ${fixedClassName}` : ""
         )}
         style={{
           background: 'var(--surface-0)',
@@ -38,7 +44,7 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       className={clsx(
         "flex h-9 w-[10.5rem] items-center gap-2.5 rounded-full px-3 transition-colors duration-200",
-        variant === 'fixed' ? "fixed right-4 top-4 z-[120] hidden md:flex" : ""
+        variant === 'fixed' ? `fixed top-4 z-[120] hidden md:flex ${fixedClassName}` : ""
       )}
       style={{
         background:   isDark ? 'rgba(39,39,42,0.92)'  : 'rgba(255,255,255,0.92)',

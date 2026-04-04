@@ -97,7 +97,7 @@ export default function PipelinesPage() {
     <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
       <div className="mb-8">
         <h1 className="page-title">Pipelines</h1>
-        <p className="page-subtitle">Configurá las etapas por las que pasan tus negocios</p>
+        <p className="page-subtitle">Configura las etapas por las que pasan tus leads</p>
       </div>
 
       {/* Create pipeline */}
@@ -205,13 +205,13 @@ export default function PipelinesPage() {
 
                 <div className="flex items-center gap-1 shrink-0 ml-auto">
                   <Link
-                    href={`/deals/${pipeline.id}`}
+                    href={`/leads/${pipeline.id}`}
                     className="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors"
                     style={{ color: 'var(--accent)' }}
                     onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--accent-muted)'}
                     onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                   >
-                    Ver Kanban
+                    Ver leads
                   </Link>
                   <button
                     onClick={() => { setEditingPipeline(pipeline.id); setEditingPipelineName(pipeline.name) }}

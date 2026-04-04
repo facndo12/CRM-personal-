@@ -16,6 +16,7 @@ build/
 
 # Prisma generated client
 backend/src/generated/
+backend/.data/
 
 # Logs
 *.log

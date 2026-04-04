@@ -112,15 +112,15 @@ export default function DashboardPage() {
             <div>
               <p className="section-label mb-1">Pipeline Overview</p>
               <h2 className="text-lg font-bold" style={{ color: 'var(--ink-primary)' }}>
-                Embudo de Ventas
+                Leads en pipeline
               </h2>
             </div>
             <Link
-              href="/deals"
+              href="/leads"
               className="flex items-center gap-2 text-sm font-semibold transition-colors"
               style={{ color: 'var(--accent)' }}
             >
-              Ver Kanban <ArrowRight size={14} />
+              Ver leads <ArrowRight size={14} />
             </Link>
           </div>
 

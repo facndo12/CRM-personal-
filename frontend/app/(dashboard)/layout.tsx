@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth'
 import { authApi } from '@/lib/api'
 import {
   Users, KanbanSquare, Webhook,
-  Key, LogOut, LayoutDashboard, Layers,
+  Key, LogOut, LayoutDashboard, Layers, MessageSquareText,
   Menu, X, ChevronRight,
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -17,14 +17,15 @@ import { ThemeToggle } from '@/components/theme-toggle'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts', label: 'Contactos', icon: Users },
-  { href: '/deals', label: 'Deals', icon: KanbanSquare },
+  { href: '/chats', label: 'Chats', icon: MessageSquareText },
+  { href: '/leads', label: 'Leads', icon: KanbanSquare },
   { href: '/pipelines', label: 'Pipelines', icon: Layers, roles: ['owner', 'admin'] as Role[] },
   { href: '/webhooks', label: 'Webhooks', icon: Webhook, roles: ['owner', 'admin'] as Role[] },
   { href: '/api-keys', label: 'API Keys', icon: Key, roles: ['owner', 'admin'] as Role[] },
   { href: '/team', label: 'Equipo', icon: Users, roles: ['owner', 'admin'] as Role[] },
 ]
 
-const MOBILE_TABS = ['/dashboard', '/contacts', '/deals']
+const MOBILE_TABS = ['/dashboard', '/contacts', '/chats', '/leads']
 
 function NavLink({
   href, label, icon: Icon, active, collapsed = false,

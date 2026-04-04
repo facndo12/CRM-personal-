@@ -10,6 +10,8 @@ const envSchema = z.object({
   API_KEY_PREFIX: z.string().default('crm'),
   FRONTEND_URL:    z.string().url().default('http://localhost:3001'),
   COOKIE_DOMAIN: z.string().optional(),
+  WHATSAPP_AUTH_DIR: z.string().optional(),
+  WHATSAPP_MEDIA_DIR: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

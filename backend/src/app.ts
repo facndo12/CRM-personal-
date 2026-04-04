@@ -20,6 +20,7 @@ import { pipelineRoutes } from './modules/pipelines/pipeline.routes'
 import { activityRoutes } from './modules/activities/activity.routes'
 import { noteRoutes } from './modules/notes/note.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
+import { whatsappRoutes } from './modules/whatsapp/whatsapp.routes'
 
 export async function buildApp() {
   initSentry()
@@ -202,6 +203,7 @@ export async function buildApp() {
   await app.register(activityRoutes, { prefix: `${API}/activities` })
   await app.register(noteRoutes, { prefix: `${API}/notes` })
   await app.register(dashboardRoutes, { prefix: `${API}/dashboard` })
+  await app.register(whatsappRoutes, { prefix: `${API}/whatsapp` })
 
   // Health check — para verificar que el servidor está vivo
   app.get('/health', async () => ({
