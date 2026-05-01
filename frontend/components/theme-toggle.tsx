@@ -1,13 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import clsx from 'clsx'
 
-export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline' }) {
-  const pathname = usePathname()
+export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -16,75 +13,38 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: 'fixed' | 'inline
   }, [])
 
   const isDark = mounted && resolvedTheme === 'dark'
-  const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password'].some((path) =>
-    pathname === path || pathname.startsWith(`${path}/`)
-  )
-  const fixedClassName = isAuthPage ? 'theme-toggle-auth' : 'theme-toggle-dashboard'
-
-  // Render a fixed-size skeleton before hydration to prevent layout shift
-  if (!mounted) {
-    return (
-      <div
-        className={clsx(
-          "flex h-9 w-[10.5rem] items-center rounded-full",
-          variant === 'fixed' ? `fixed top-4 z-[120] hidden md:flex ${fixedClassName}` : ""
-        )}
-        style={{
-          background: 'var(--surface-0)',
-          border: '1px solid var(--border-1)',
-        }}
-        aria-hidden="true"
-      />
-    )
-  }
 
   return (
     <button
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className={clsx(
-        "flex h-9 w-[10.5rem] items-center gap-2.5 rounded-full px-3 transition-colors duration-200",
-        variant === 'fixed' ? `fixed top-4 z-[120] hidden md:flex ${fixedClassName}` : ""
-      )}
-      style={{
-        background:   isDark ? 'rgba(39,39,42,0.92)'  : 'rgba(255,255,255,0.92)',
-        border:       isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.09)',
-        color:        isDark ? '#a1a1aa' : '#52525b',
-        backdropFilter: 'blur(12px)',
-      }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLElement).style.color = isDark ? '#fafafa' : '#18181b'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.color = isDark ? '#a1a1aa' : '#52525b'
-      }}
+      className={`fixed top-4 right-4 z-[120] flex items-center gap-3 rounded-full px-3 py-2 text-sm font-semibold backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 ${
+        isDark
+          ? 'border border-slate-600/80 bg-slate-900/88 text-slate-100 shadow-lg shadow-slate-950/35 hover:border-slate-500 hover:bg-slate-800/92 hover:text-sky-100'
+          : 'border border-slate-300/80 bg-white/88 text-slate-700 shadow-lg shadow-sky-900/10 hover:border-sky-300 hover:bg-sky-50/92 hover:text-primary-700'
+      }`}
       aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
       aria-pressed={isDark}
     >
-      {/* Toggle pill */}
       <span
-        className="relative flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors duration-300"
-        style={{
-          background: isDark ? '#7c3aed' : 'var(--border-2)',
-        }}
+        className={`relative flex h-7 w-12 items-center rounded-full p-1 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isDark
+            ? 'border border-slate-600 bg-slate-800'
+            : 'border border-slate-300 bg-sky-100'
+        }`}
         aria-hidden="true"
       >
         <span
-          className="flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-sm transition-transform duration-300"
-          style={{ transform: isDark ? 'translateX(16px)' : 'translateX(0)' }}
+          className={`flex h-5 w-5 items-center justify-center rounded-full shadow-md transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isDark
+              ? 'translate-x-5 bg-slate-200 text-slate-800 shadow-slate-950/20'
+              : 'translate-x-0 bg-white text-amber-500 shadow-sky-900/10'
+          }`}
         >
-          {isDark
-            ? <Moon size={9} style={{ color: '#7c3aed' }} />
-            : <Sun size={9} style={{ color: '#d97706' }} />
-          }
+          {isDark ? <Moon size={12} /> : <Sun size={12} />}
         </span>
       </span>
-
-      {/* Fixed-width label — prevents size jump between strings */}
-      <span
-        className="text-[12px] font-semibold"
-        style={{ width: '6.25rem', textAlign: 'left', letterSpacing: '-0.01em' }}
-      >
+      <span className="hidden sm:inline transition-colors duration-500">
         {isDark ? 'Modo oscuro' : 'Modo claro'}
       </span>
     </button>

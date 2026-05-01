@@ -2,138 +2,45 @@ import axios from 'axios'
 import { auth } from './auth'
 import type {
   Contact, Deal, Webhook,
-  Pipeline, Stage,
+  Pipeline, Stage, InboxConnection, EmbeddedSignupConfig, InboxConversation, InboxMessage, PaginatedResult,
+  RegisterWhatsAppPhoneResult,
 } from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
 
-export function resolveApiAssetUrl(value?: string | null) {
-  if (!value) return null
-  if (/^https?:\/\//i.test(value)) return value
-  const apiOrigin = BASE_URL.replace(/\/api\/v1\/?$/, '')
-  const normalizedPath = value.startsWith('/') ? value : `/${value}`
-  return `${apiOrigin}${normalizedPath}`
-}
-
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
 })
 
-async function refreshCsrfToken(): Promise<string | null> {
-  try {
-    const res = await axios.get(`${BASE_URL}/auth/csrf-token`, {
-      withCredentials: true,
-    })
-    const token = res.data.csrfToken
-    if (token) {
-      // Update the stored auth data with the new CSRF token
-      const stored = auth.get()
-      if (stored) {
-        auth.save({ ...stored, csrfToken: token })
-      }
-    }
-    return token
-  } catch {
-    return null
+// Interceptor: agrega el token JWT automaticamente a cada request
+// Sin esto tendrias que pasarlo manualmente en cada llamada
+api.interceptors.request.use((config) => {
+  const token = auth.getToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
-}
-
-function getCsrfToken(): string | null {
-  return auth.getCsrfToken()
-}
-
-// Interceptor — agrega el token JWT y CSRF automáticamente a cada request
-// Usa cookie si existe (httpOnly), sino Authorization header (localStorage)
-api.interceptors.request.use(async (config) => {
-  const cookieToken = getCookie('crm_token')
-  if (!cookieToken) {
-    const token = auth.getToken?.() ?? localStorage.getItem('crm_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-  }
-
-  if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
-    const isPublicRoute =
-      config.url?.includes('/auth/login') ||
-      config.url?.includes('/auth/register') ||
-      config.url?.includes('/auth/forgot-password') ||
-      config.url?.includes('/auth/reset-password')
-
-    if (!isPublicRoute) {
-      const storedCsrf = getCsrfToken()
-      if (storedCsrf) {
-        config.headers['x-csrf-token'] = storedCsrf
-      } else if (auth.isLoggedIn()) {
-        const newToken = await refreshCsrfToken()
-        if (newToken) {
-          config.headers['x-csrf-token'] = newToken
-        }
-      }
-    }
-  }
-
   return config
 })
 
-// Track retry attempts to prevent infinite loops
-const retryMap = new Map<string, number>()
-
-// Interceptor de respuesta — maneja errores globalmente
-// Si el token expiró (401), limpia la sesión y redirige al login.
-// Si falla CSRF, refresca el token y reintenta una vez.
+// Interceptor de respuesta: maneja errores globalmente
+// Si el token expiro (401), limpia la sesion y redirige al login.
+// Omitimos la redireccion si el error de auth proviene del propio login.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const config = error.config
-    if (!config) return Promise.reject(error)
-
-    const isAuthRoute = config.url?.includes('/auth/login') || 
-                        config.url?.includes('/auth/register') ||
-                        config.url?.includes('/auth/logout')
-
+  (error) => {
+    const isAuthRoute = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')
+    
     if (error.response?.status === 401 && !isAuthRoute) {
       auth.clear()
       window.location.href = '/login'
-      return Promise.reject(error)
     }
-
-    // CSRF error — refresh token and retry once
-    if (error.response?.status === 403 && error.response?.data?.error === 'CSRF_ERROR') {
-      const retryKey = config.url + config.method
-      const retries = retryMap.get(retryKey) ?? 0
-      
-      if (retries < 1) {
-        retryMap.set(retryKey, retries + 1)
-        
-        // Refresh the CSRF token
-        const newToken = await refreshCsrfToken()
-        if (newToken) {
-          config.headers['x-csrf-token'] = newToken
-          return api(config)
-        }
-      }
-      retryMap.delete(retryKey)
-    }
-    
     return Promise.reject(error)
   }
 )
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift() ?? null
-  }
-  return null
-}
-
-// ─── Auth ──────────────────────────────────────────────────────────
+// Auth
 export const authApi = {
   register: (data: {
     email: string
@@ -161,11 +68,9 @@ export const authApi = {
     api.post('/auth/forgot-password', { email }),
   resetPassword: (token: string, password: string) =>
     api.post('/auth/reset-password', { token, password }),
-
-  logout: () => api.post('/auth/logout'),
 }
 
-// ─── Contactos ────────────────────────────────────────────────────
+// Contactos
 type ContactFiltersQuery = {
   search?: string; status?: string; page?: number
   limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc'
@@ -192,7 +97,7 @@ export const contactsApi = {
     api.post(`/contacts/${winnerId}/merge`, { loserId }),
 }
 
-// ─── Deals ────────────────────────────────────────────────────────
+// Deals
 type CreateDealPayload = {
   title: string; pipelineId: string; stageId: string
   value?: number; currency?: string; probability?: number
@@ -221,7 +126,7 @@ export const dealsApi = {
     api.delete(`/deals/${id}`),
 }
 
-// ─── Webhooks ─────────────────────────────────────────────────────
+// Webhooks
 type WebhookPayload = { name: string; url: string; events: string[]; secret?: string }
 
 export const webhooksApi = {
@@ -244,7 +149,7 @@ export const webhooksApi = {
     api.post(`/webhooks/${id}/test`),
 }
 
-// ─── Pipelines ────────────────────────────────────────────────────
+// Pipelines
 export const pipelinesApi = {
   list:        ()                                                            => api.get('/pipelines'),
   create:      (data: Pick<Pipeline, 'name'>)                                => api.post('/pipelines', data),
@@ -258,7 +163,7 @@ export const pipelinesApi = {
     api.delete(`/pipelines/${pipelineId}/stages/${stageId}`),
 }
 
-//Actividades
+// Actividades
 export const activitiesApi = {
   list: (contactId: string) =>
     api.get('/activities', { params: { contactId } }),
@@ -283,35 +188,12 @@ export const notesApi = {
   delete: (id: string) => api.delete(`/notes/${id}`),
 }
 
-//DASHBOARD
+// Dashboard
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
 }
 
-// ─── Equipo ────────────────────────────────────────────────────────
-export const whatsappApi = {
-  getSession: () =>
-    api.get('/whatsapp/session'),
-
-  connect: (data?: { mode?: 'qr' | 'pairing'; phoneNumber?: string }) =>
-    api.post('/whatsapp/connect', data ?? {}),
-
-  disconnect: () =>
-    api.post('/whatsapp/disconnect'),
-
-  listChats: (params?: { search?: string }) =>
-    api.get('/whatsapp/chats', { params }),
-
-  listMessages: (jid: string, params?: { limit?: number }) =>
-    api.get(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { params }),
-
-  syncHistory: (jid: string, params?: { count?: number }) =>
-    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/history`, undefined, { params }),
-
-  sendMessage: (jid: string, text: string) =>
-    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { text }),
-}
-
+// Equipo
 export const teamApi = {
   list: () =>
     api.get('/auth/team'),
@@ -326,3 +208,62 @@ export const teamApi = {
     api.delete(`/auth/team/${memberId}`),
 }
 
+
+// Inbox / Canales
+export const inboxApi = {
+  listConnections: () =>
+    api.get<InboxConnection[]>('/inbox/connections'),
+
+  listConversations: (params?: {
+    channel?: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+    status?: string
+    page?: number
+    limit?: number
+  }) =>
+    api.get<PaginatedResult<InboxConversation>>('/inbox/conversations', { params }),
+
+  listMessages: (conversationId: string, params?: { page?: number; limit?: number }) =>
+    api.get<PaginatedResult<InboxMessage>>(`/inbox/conversations/${conversationId}/messages`, { params }),
+
+  markConversationRead: (conversationId: string) =>
+    api.post(`/inbox/conversations/${conversationId}/read`),
+
+  sendConversationMessage: (conversationId: string, data: {
+    text: string
+    replyToMessageId?: string
+    previewUrl?: boolean
+  }) =>
+    api.post<InboxMessage>(`/inbox/conversations/${conversationId}/messages`, data),
+
+  testConnection: (id: string) =>
+    api.post(`/inbox/connections/${id}/test`),
+
+  registerWhatsAppPhone: (id: string, data: { pin: string }) =>
+    api.post<RegisterWhatsAppPhoneResult>(`/inbox/connections/${id}/register-phone`, data),
+
+  getEmbeddedSignupConfig: () =>
+    api.get<EmbeddedSignupConfig>('/inbox/meta/whatsapp/embedded-signup/config'),
+
+  completeEmbeddedSignup: (data: {
+    phoneNumberId: string
+    accessToken: string
+    businessId?: string
+    wabaId?: string
+    displayPhoneNumber?: string
+    verifiedName?: string
+    qualityRating?: string
+    name?: string
+  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete', data),
+
+  completeEmbeddedSignupFromCode: (data: {
+    code: string
+    phoneNumberId: string
+    businessId?: string
+    wabaId?: string
+    displayPhoneNumber?: string
+    verifiedName?: string
+    qualityRating?: string
+    name?: string
+    redirectUri?: string
+  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete-from-code', data),
+}

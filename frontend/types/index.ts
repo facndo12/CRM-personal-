@@ -1,13 +1,13 @@
-// ─── Roles ────────────────────────────────────────────────────────
+// Roles
 export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 
-/** Helper para verificar si un rol tiene acceso a una acción */
+/** Helper para verificar si un rol tiene acceso a una accion */
 export function canDo(userRole: Role | string | undefined, allowedRoles: Role[]): boolean {
   if (!userRole) return false
   return allowedRoles.includes(userRole as Role)
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────
+// Auth
 export interface User {
   id: string
   email: string
@@ -29,7 +29,7 @@ export interface AuthResponse {
   accessToken: string
 }
 
-// ─── Contactos ────────────────────────────────────────────────────
+// Contactos
 export interface Contact {
   id: string
   workspaceId: string
@@ -69,7 +69,7 @@ export interface ContactFilters {
   scoreMax?: number
 }
 
-// ─── Deals y Kanban ───────────────────────────────────────────────
+// Deals y Kanban
 export interface Deal {
   id: string
   workspaceId: string
@@ -103,7 +103,6 @@ export interface KanbanStage {
 export interface KanbanCard {
   id: string
   title: string
-  leadNumber?: string | null
   value?: number
   currency: string
   probability?: number
@@ -115,22 +114,6 @@ export interface KanbanCard {
   expectedCloseDate?: string
   daysInStage: number
   isRotten: boolean
-  primaryContact?: {
-    id: string
-    name: string
-    phone?: string | null
-    avatar?: string | null
-    status: string
-  } | null
-  latestChat?: {
-    jid: string
-    displayName?: string | null
-    phoneNumber?: string | null
-    unreadCount: number
-    lastMessageAt?: string | null
-    lastMessagePreview?: string | null
-    lastMessageFromMe?: boolean | null
-  } | null
   createdAt: string
   updatedAt: string
 }
@@ -147,7 +130,7 @@ export interface KanbanBoard {
   columns: KanbanColumn[]
 }
 
-// ─── Webhooks ─────────────────────────────────────────────────────
+// Webhooks
 export interface Webhook {
   id: string
   workspaceId: string
@@ -163,7 +146,7 @@ export interface Webhook {
   updatedAt: string
 }
 
-// ─── API Keys ─────────────────────────────────────────────────────
+// API Keys
 export interface ApiKey {
   id: string
   name: string
@@ -174,7 +157,7 @@ export interface ApiKey {
   createdAt: string
 }
 
-// ── Activities ───────────────────────────────────────────────────
+// Activities
 export interface Activity {
   id:          string
   type:        string
@@ -185,7 +168,7 @@ export interface Activity {
   createdAt:   string
 }
 
-// ── Notes ────────────────────────────────────────────────────────
+// Notes
 export interface Note {
   id:        string
   content:   string
@@ -194,7 +177,7 @@ export interface Note {
   createdAt: string
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────
+// Dashboard
 export interface DashboardData {
   contacts: {
     total:    number
@@ -228,91 +211,7 @@ export interface DashboardData {
   }[]
 }
 
-// ── Pipelines ──────────────────────────────────────────────────────
-export type WhatsAppConnectionStatus =
-  | 'DISCONNECTED'
-  | 'CONNECTING'
-  | 'PAIRING'
-  | 'CONNECTED'
-  | 'ERROR'
-
-export interface WhatsAppSessionSnapshot {
-  id: string
-  workspaceId: string
-  status: WhatsAppConnectionStatus
-  phoneNumber?: string | null
-  phoneJid?: string | null
-  pushName?: string | null
-  pairingCode?: string | null
-  pairingCodeIssuedAt?: string | null
-  qrCode?: string | null
-  lastConnectedAt?: string | null
-  lastDisconnectedAt?: string | null
-  lastDisconnectCode?: number | null
-  lastError?: string | null
-  createdAt: string
-  updatedAt: string
-  packageInstalled: boolean
-  runtimeCompatible: boolean
-  authAvailable: boolean
-  hasActiveSocket: boolean
-  chatCount: number
-}
-
-export interface WhatsAppChat {
-  id: string
-  workspaceId: string
-  sessionId: string
-  jid: string
-  displayName?: string | null
-  phoneNumber?: string | null
-  isGroup: boolean
-  unreadCount: number
-  archived: boolean
-  pinned: boolean
-  mutedUntil?: string | null
-  lastMessageAt?: string | null
-  lastMessagePreview?: string | null
-  lastMessageFromMe?: boolean | null
-  contactId?: string | null
-  contactName?: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-export interface WhatsAppMessage {
-  id: string
-  workspaceId: string
-  sessionId: string
-  chatId: string
-  remoteJid: string
-  messageId: string
-  fromMe: boolean
-  participant?: string | null
-  pushName?: string | null
-  messageType: string
-  text?: string | null
-  status?: string | null
-  mediaUrl?: string | null
-  mediaMimeType?: string | null
-  mediaFileName?: string | null
-  mediaSizeBytes?: number | null
-  mediaDurationSeconds?: number | null
-  quotedMessageId?: string | null
-  quotedText?: string | null
-  quotedMessageType?: string | null
-  sentAt: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface WhatsAppMessagesPayload {
-  chat: WhatsAppChat | null
-  items: WhatsAppMessage[]
-  totalMessages: number
-  historyAnchorAvailable: boolean
-}
-
+// Pipelines
 export interface Stage {
   id:         string
   pipelineId: string
@@ -327,4 +226,165 @@ export interface Pipeline {
   name:        string
   stages:      Stage[]
   createdAt:   string
+}
+export interface InboxConversationPreviewAttachment {
+  type: string
+  url?: string | null
+  fileName?: string | null
+}
+
+export interface InboxConversationLatestMessage {
+  id: string
+  direction: 'inbound' | 'outbound'
+  type: string
+  text?: string | null
+  status: string
+  sentAt?: string | null
+  createdAt: string
+  attachments: InboxConversationPreviewAttachment[]
+}
+
+export interface InboxConversationContact {
+  id: string
+  firstName: string
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+}
+
+export interface InboxConversationConnection {
+  id: string
+  name: string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+  status: 'disconnected' | 'connected' | 'error'
+  externalAccountId: string
+  externalAccountLabel?: string | null
+}
+
+export interface InboxConversation {
+  id: string
+  workspaceId: string
+  connectionId: string
+  contactId: string
+  provider: 'meta' | 'tiktok' | string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok' | string
+  externalThreadId?: string | null
+  externalUserId?: string | null
+  status: string
+  inboxState: string
+  unreadCount: number
+  lastInboundAt?: string | null
+  lastOutboundAt?: string | null
+  lastMessageAt?: string | null
+  assignedToUserId?: string | null
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  contact: InboxConversationContact
+  connection: InboxConversationConnection
+  messages: InboxConversationLatestMessage[]
+}
+
+export interface InboxMessageAttachment {
+  id: string
+  type: string
+  mimeType?: string | null
+  url?: string | null
+  externalAssetId?: string | null
+  fileName?: string | null
+  sizeBytes?: number | null
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface InboxMessageDelivery {
+  id: string
+  messageId: string
+  providerMessageId?: string | null
+  providerStatus: string
+  providerTimestamp?: string | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  rawPayload?: unknown
+  createdAt: string
+}
+
+export interface InboxMessage {
+  id: string
+  workspaceId: string
+  conversationId: string
+  contactId?: string | null
+  provider: 'meta' | 'tiktok' | string
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok' | string
+  direction: 'inbound' | 'outbound'
+  type: string
+  status: string
+  providerMessageId?: string | null
+  providerReplyToId?: string | null
+  text?: string | null
+  rawPayload?: unknown
+  metadata?: Record<string, unknown>
+  sentAt?: string | null
+  deliveredAt?: string | null
+  readAt?: string | null
+  failedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  attachments: InboxMessageAttachment[]
+  deliveries: InboxMessageDelivery[]
+}
+// Canales / Inbox
+export interface InboxConnection {
+  id: string
+  workspaceId: string
+  provider: 'meta' | 'tiktok'
+  channel: 'whatsapp' | 'instagram' | 'messenger' | 'tiktok'
+  name: string
+  status: 'disconnected' | 'connected' | 'error'
+  externalAccountId: string
+  externalAccountLabel?: string | null
+  settings?: Record<string, unknown>
+  hasCredentials: boolean
+  lastSyncedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmbeddedSignupConfig {
+  enabled: boolean
+  codeExchangeReady: boolean
+  appId?: string
+  configurationId?: string
+  provider: 'meta'
+  channel: 'whatsapp'
+}
+
+export interface ConnectionInspection {
+  status: 'connected'
+  externalAccountLabel?: string
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
+export interface ConnectionTestResult {
+  connection: InboxConnection
+  inspection: ConnectionInspection
+}
+
+export interface WhatsAppPhoneRegistration {
+  registeredAt: string
+  metadata?: Record<string, unknown>
+  rawResponse: unknown
+}
+
+export interface RegisterWhatsAppPhoneResult extends ConnectionTestResult {
+  registration: WhatsAppPhoneRegistration
+}
+
+export interface EmbeddedSignupCompletionResult extends ConnectionTestResult {
+  mode: 'created' | 'updated'
+  exchange?: {
+    tokenType?: string
+    expiresIn?: number
+  }
 }

@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { DealService } from './deal.service'
 import type { EventBus } from '../../core/event-bus'
-import { db } from '../../core/database'
 import { authenticate } from '../../core/auth/auth.service'
 import { requireRole } from '../../core/auth/require-role'
 
@@ -35,10 +34,6 @@ const filtersSchema = z.object({
   limit:      z.coerce.number().min(1).max(100).default(25),
 })
 
-function buildContactName(contact: { firstName: string; lastName?: string | null }) {
-  return `${contact.firstName}${contact.lastName ? ` ${contact.lastName}` : ''}`
-}
-
 export async function dealRoutes(
   app: FastifyInstance,
   options: { eventBus: EventBus }
@@ -66,93 +61,7 @@ export async function dealRoutes(
         ctx.workspaceId,
         req.params.pipelineId
       )
-
-      const contactIds = [...new Set(
-        board.columns.flatMap((column) =>
-          column.deals.flatMap((deal) => deal.contactIds)
-        )
-      )]
-
-      if (contactIds.length === 0) {
-        return reply.send(board)
-      }
-
-      const contacts = await db.contact.findMany({
-        where: {
-          workspaceId: ctx.workspaceId,
-          id: { in: contactIds },
-          isArchived: false,
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          avatar: true,
-          status: true,
-          whatsappChats: {
-            where: {
-              isGroup: false,
-              messages: {
-                some: {},
-              },
-            },
-            orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
-            take: 1,
-            select: {
-              jid: true,
-              displayName: true,
-              phoneNumber: true,
-              unreadCount: true,
-              lastMessageAt: true,
-              lastMessagePreview: true,
-              lastMessageFromMe: true,
-            },
-          },
-        },
-      })
-
-      const contactsById = new Map(
-        contacts.map((contact) => [
-          contact.id,
-          {
-            id: contact.id,
-            name: buildContactName(contact),
-            phone: contact.phone,
-            avatar: contact.avatar,
-            status: contact.status,
-            latestChat: contact.whatsappChats[0] ?? null,
-          },
-        ])
-      )
-
-      const enrichedBoard = {
-        ...board,
-        columns: board.columns.map((column) => ({
-          ...column,
-          deals: column.deals.map((deal) => {
-            const primaryContact = deal.contactIds
-              .map((contactId) => contactsById.get(contactId))
-              .find(Boolean) ?? null
-
-            return {
-              ...deal,
-              primaryContact: primaryContact
-                ? {
-                    id: primaryContact.id,
-                    name: primaryContact.name,
-                    phone: primaryContact.phone,
-                    avatar: primaryContact.avatar,
-                    status: primaryContact.status,
-                  }
-                : null,
-              latestChat: primaryContact?.latestChat ?? null,
-            }
-          }),
-        })),
-      }
-
-      return reply.send(enrichedBoard)
+      return reply.send(board)
     }
   )
 
