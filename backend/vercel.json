@@ -5,9 +5,7 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": [
-          "src/generated/prisma/**"
-        ]
+        "includeFiles": "node_modules/.prisma/**"
       }
     }
   ],

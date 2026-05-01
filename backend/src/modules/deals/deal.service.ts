@@ -7,7 +7,7 @@ import {
   type PaginationQuery,
   type PaginatedResult,
 } from '../../types'
-import { type Prisma } from '../../generated/prisma'
+import { type Prisma } from '@prisma/client'
 
 type Deal = Prisma.DealGetPayload<object>
 
@@ -67,7 +67,6 @@ export interface KanbanColumn {
 export interface KanbanCard {
   id: string
   title: string
-  leadNumber?: string | null
   value: number | null
   currency: string
   probability: number | null
@@ -79,22 +78,6 @@ export interface KanbanCard {
   expectedCloseDate: Date | null
   daysInStage: number
   isRotten: boolean
-  primaryContact?: {
-    id: string
-    name: string
-    phone: string | null
-    avatar: string | null
-    status: string
-  } | null
-  latestChat?: {
-    jid: string
-    displayName: string | null
-    phoneNumber: string | null
-    unreadCount: number
-    lastMessageAt: Date | null
-    lastMessagePreview: string | null
-    lastMessageFromMe: boolean | null
-  } | null
   createdAt: Date
   updatedAt: Date
 }
@@ -183,45 +166,9 @@ export class DealService {
 
     // Traer todos los deals abiertos del pipeline de una sola consulta
     const deals = await db.deal.findMany({
-      where: { workspaceId, pipelineId, status: 'OPEN', isArchived: false },
+      where: { workspaceId, pipelineId, status: 'OPEN', isArchived: false},
       include: {
-        contacts: {
-          select: {
-            contactId: true,
-            contact: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
-                avatar: true,
-                status: true,
-                whatsappChats: {
-                  where: {
-                    isGroup: false,
-                    messages: {
-                      some: {},
-                    },
-                  },
-                  orderBy: [
-                    { lastMessageAt: 'desc' },
-                    { updatedAt: 'desc' },
-                  ],
-                  take: 1,
-                  select: {
-                    jid: true,
-                    displayName: true,
-                    phoneNumber: true,
-                    unreadCount: true,
-                    lastMessageAt: true,
-                    lastMessagePreview: true,
-                    lastMessageFromMe: true,
-                  },
-                },
-              },
-            },
-          },
-        },
+        contacts: { select: { contactId: true } },
       },
       orderBy: { position: 'asc' },
     })
@@ -246,9 +193,6 @@ export class DealService {
         return {
           id: d.id,
           title: d.title,
-          leadNumber: typeof (d.customData as any)?.leadNumber === 'string'
-            ? (d.customData as any).leadNumber
-            : null,
           value: d.value ? Number(d.value) : null,
           currency: d.currency,
           probability: d.probability,

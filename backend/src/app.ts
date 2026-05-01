@@ -3,15 +3,14 @@ import Fastify from 'fastify'
 import fastifyJwt from '@fastify/jwt'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
-import fastifyCookie from '@fastify/cookie'
-import { config } from './core/config'
-import { verifyCsrfToken, CSRF_HEADER_NAME, CSRF_COOKIE_NAME } from './core/security/csrf-utils'
+
 import { initSentry, Sentry } from './core/monitoring/sentry'
+import { config } from './core/config'
 import { EventBus } from './core/event-bus'
 import { AppError } from './types'
 
 // Rutas
-import { authRoutes, authCsrfRoutes } from './modules/workspaces/auth.routes'
+import { authRoutes } from './modules/workspaces/auth.routes'
 import { contactRoutes } from './modules/contacts/contact.routes'
 import { dealRoutes } from './modules/deals/deal.routes'
 import { webhookRoutes } from './modules/webhooks/webhooks.routes'
@@ -20,7 +19,7 @@ import { pipelineRoutes } from './modules/pipelines/pipeline.routes'
 import { activityRoutes } from './modules/activities/activity.routes'
 import { noteRoutes } from './modules/notes/note.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
-import { whatsappRoutes } from './modules/whatsapp/whatsapp.routes'
+import { inboxRoutes } from './modules/inbox/inbox.routes'
 
 export async function buildApp() {
   initSentry()
@@ -65,28 +64,19 @@ export async function buildApp() {
         message: `Has superado el límite de ${context.max} peticiones. Espera un momento y vuelve a intentar.`,
       }
     }
-  })
-
-  // ─── Cookie plugin (requerido para httpOnly cookies) ──────────
-  await app.register(fastifyCookie)
-
-  // ─── Event Bus ─────────────────────────────────────────────────
+  })  // ─── Event Bus ─────────────────────────────────────────────────
   // Una sola instancia compartida por todos los módulos
   const eventBus = new EventBus(config.REDIS_URL)
 
   // ─── Plugins ───────────────────────────────────────────────────
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true)
-
       const allowed = [
         config.FRONTEND_URL,
         'http://localhost:3001',
         'http://localhost:3000',
       ]
-
-      // Permitir URL exacta o cualquier subdominio de vercel.app
-      if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+      if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
         cb(null, true)
       } else {
         cb(new Error('Not allowed by CORS'), false)
@@ -105,14 +95,13 @@ export async function buildApp() {
   // llegar al cliente — así la respuesta siempre tiene el
   // mismo formato sin importar dónde ocurrió el error
   app.setErrorHandler((error: any, req, reply) => {
-    // Log del error completo para debugging
-    req.log.error({ err: error }, 'Request error')
 
     // Reportar a Sentry solo errores inesperados 
     if (
       !(error instanceof AppError) &&
       error.name !== 'ZodError' &&
-      !error.code?.startsWith('FST_JWT_')
+      error.code !== 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' &&
+      error.code !== 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
     ) {
       Sentry.captureException(error)
     }
@@ -133,8 +122,11 @@ export async function buildApp() {
       })
     }
 
-    // Errores de JWT (todos los códigos FST_JWT_*)
-    if (error.code?.startsWith('FST_JWT_')) {
+    // Errores de JWT
+    if (
+      error.code === 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' ||
+      error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
+    ) {
       return reply.status(401).send({
         error: 'UNAUTHORIZED',
         message: error.message,
@@ -142,6 +134,7 @@ export async function buildApp() {
     }
 
     // Error genérico
+    req.log.error(error instanceof Error ? error.message : String(error))
     return reply.status(500).send({
       error: 'INTERNAL_ERROR',
       message: 'Error interno del servidor',
@@ -152,49 +145,6 @@ export async function buildApp() {
   const API = '/api/v1'
 
   await app.register(authRoutes, { prefix: `${API}/auth` })
-  await app.register(authCsrfRoutes, { prefix: `${API}/auth` })
-
-  // ─── Global CSRF Hook ─────────────────────────────────────────
-  // Verifica CSRF en todas las rutas que modifican estado
-  app.addHook('onRequest', async (req, reply) => {
-    const csrfMethods = ['POST', 'PUT', 'PATCH', 'DELETE']
-    
-    if (csrfMethods.includes(req.method)) {
-      const isPublicRoute = 
-        req.url.includes('/auth/login') ||
-        req.url.includes('/auth/register') ||
-        req.url.includes('/auth/forgot-password') ||
-        req.url.includes('/auth/reset-password') ||
-        req.url.includes('/health') ||
-        req.url.includes('/csrf-token')
-      
-      if (!isPublicRoute) {
-        const token = req.headers[CSRF_HEADER_NAME] as string | undefined
-        
-        if (!token) {
-          return reply.status(403).send({
-            error: 'CSRF_ERROR',
-            message: 'Token CSRF requerido. Refrescá la página e intentá de nuevo.',
-          })
-        }
-        
-        try {
-          const isValid = verifyCsrfToken(config.JWT_SECRET, token)
-          if (!isValid) {
-            return reply.status(403).send({
-              error: 'CSRF_ERROR',
-              message: 'Token CSRF inválido. Refrescá la página e intentá de nuevo.',
-            })
-          }
-        } catch {
-          return reply.status(403).send({
-            error: 'CSRF_ERROR',
-            message: 'Token CSRF inválido. Refrescá la página e intentá de nuevo.',
-          })
-        }
-      }
-    }
-  })
   await app.register(contactRoutes, { prefix: `${API}/contacts`, eventBus })
   await app.register(dealRoutes, { prefix: `${API}/deals`, eventBus })
   await app.register(webhookRoutes, { prefix: `${API}/webhooks` })
@@ -203,7 +153,7 @@ export async function buildApp() {
   await app.register(activityRoutes, { prefix: `${API}/activities` })
   await app.register(noteRoutes, { prefix: `${API}/notes` })
   await app.register(dashboardRoutes, { prefix: `${API}/dashboard` })
-  await app.register(whatsappRoutes, { prefix: `${API}/whatsapp` })
+  await app.register(inboxRoutes, { prefix: `${API}/inbox`, eventBus })
 
   // Health check — para verificar que el servidor está vivo
   app.get('/health', async () => ({

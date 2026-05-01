@@ -6,7 +6,7 @@ import { webhooksApi } from '@/lib/api'
 import type { Webhook as WebhookType } from '@/types'
 import {
   Webhook as WebhookIcon, Plus, Trash2, TestTube2,
-  CheckCircle2, XCircle, Loader2, Copy, Check, X,
+  CheckCircle2, XCircle, Loader2, Copy, Check
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -32,11 +32,13 @@ export default function WebhooksPage() {
   })
 
   const createMutation = useMutation({
+    
     mutationFn: () => webhooksApi.create({
-      ...form,
-      secret: form.secret || undefined,
+        ...form,
+        secret: form.secret || undefined,  // ← enviar undefined si está vacío
     }),
-    onSuccess: () => {
+
+    onSuccess:  () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       setShowForm(false)
       setForm({ name: '', url: '', events: [], secret: '' })
@@ -68,72 +70,65 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="animate-fade-in p-4 md:p-8 max-w-[1000px]">
+    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
 
       {/* Header */}
-      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="page-title">Webhooks</h1>
-          <p className="page-subtitle">Notificaciones automáticas a sistemas externos</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Webhooks</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Notificaciones automáticas a sistemas externos
+          </p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary self-start sm:self-auto">
-          <Plus size={15} strokeWidth={2.5} />
+        <button
+          onClick={() => setShowForm(true)}
+          className="btn-primary"
+        >
+          <Plus size={18} strokeWidth={2.5} />
           Nuevo webhook
         </button>
       </div>
 
-      {/* Create form */}
+      {/* Formulario */}
       {showForm && (
-        <div className="animate-slide-up interactive-card mb-6 p-5" style={{ borderLeft: '2px solid var(--accent)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-label">Configurar webhook</p>
-            <button
-              onClick={() => setShowForm(false)}
-              className="rounded p-1 transition-colors"
-              style={{ color: 'var(--ink-tertiary)' }}
-              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
-              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div className="space-y-3">
+        <div className="interactive-card p-6 mb-8 animate-slide-up">
+          <h3 className="text-slate-900 font-bold mb-5 text-lg">Configurar nuevo webhook</h3>
+
+          <div className="space-y-4">
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Nombre del webhook (ej. n8n contactos) *"
-              className="ctrl-input"
+              placeholder="Nombre del webhook (ej: n8n contactos) *"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
+
             <input
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
               placeholder="https://tu-servidor.com/webhook *"
-              className="ctrl-input font-mono"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
+
             <input
               value={form.secret}
               onChange={(e) => setForm({ ...form, secret: e.target.value })}
               placeholder="Secret (opcional — para verificar firma HMAC)"
-              className="ctrl-input"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 placeholder-slate-400 font-medium transition-all"
             />
+
             <div>
-              <p className="section-label mb-2">Eventos a escuchar</p>
-              <div className="flex flex-wrap gap-1.5">
+              <p className="text-slate-600 text-xs font-bold mb-3 uppercase tracking-wider">Eventos a escuchar:</p>
+              <div className="flex flex-wrap gap-2">
                 {EVENT_OPTIONS.map((event) => (
                   <button
                     key={event}
                     onClick={() => toggleEvent(event)}
                     className={clsx(
-                      'rounded px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                      'text-xs px-3.5 py-2 rounded-full font-bold transition-all border',
                       form.events.includes(event)
-                        ? 'text-white'
-                        : 'border'
+                        ? 'bg-primary-100 border-primary-300 text-primary-800 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
                     )}
-                    style={
-                      form.events.includes(event)
-                        ? { background: 'var(--accent)', border: '1px solid var(--accent)' }
-                        : { background: 'var(--surface-2)', color: 'var(--ink-secondary)', borderColor: 'var(--border-1)' }
-                    }
                   >
                     {event}
                   </button>
@@ -141,74 +136,75 @@ export default function WebhooksPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex gap-2" style={{ borderTop: '1px solid var(--border-0)', paddingTop: '1rem' }}>
+
+          <div className="flex gap-3 mt-6 pt-5 border-t border-slate-100">
             <button
               onClick={() => createMutation.mutate()}
               disabled={!form.name || !form.url || form.events.length === 0 || createMutation.isPending}
               className="btn-primary"
             >
-              {createMutation.isPending && <Loader2 size={13} className="animate-spin" />}
-              Guardar
+              {createMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              Guardar webhook
             </button>
-            <button onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
+            <button
+              onClick={() => setShowForm(false)}
+              className="btn-secondary"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
 
-      {/* Webhook list */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }} />
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : webhooks?.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-xl py-24 text-center"
-          style={{ border: '1px dashed var(--border-2)' }}
-        >
-          <WebhookIcon size={40} strokeWidth={1.25} className="mb-3" style={{ color: 'var(--ink-muted)' }} />
-          <p className="text-sm font-medium" style={{ color: 'var(--ink-secondary)' }}>Sin webhooks configurados</p>
-          <p className="mt-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-            Sincronizá tus datos con plataformas externas agregando uno.
-          </p>
+        <div className="text-center py-24 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+          <WebhookIcon size={56} className="mx-auto mb-4 text-slate-300" strokeWidth={1.5} />
+          <p className="text-slate-500 font-medium text-lg">No hay webhooks configurados</p>
+          <p className="text-slate-400 text-sm mt-1">Sincronizá tus datos con plataformas externas agregando uno.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {webhooks?.map((wh) => (
-            <div key={wh.id} className="interactive-card p-5">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div
+              key={wh.id}
+              className="interactive-card p-5"
+            >
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
 
-                  {/* URL + status */}
+                  {/* URL y estado */}
                   <div className="flex items-center gap-2 mb-3">
-                    {wh.isActive
-                      ? <CheckCircle2 size={14} strokeWidth={2.5} style={{ color: 'var(--semantic-success)' }} className="shrink-0" />
-                      : <XCircle size={14} strokeWidth={2.5} style={{ color: 'var(--semantic-danger)' }} className="shrink-0" />
-                    }
-                    <span className="truncate font-mono text-[12px] font-semibold" style={{ color: 'var(--ink-primary)' }}>
+                    {wh.isActive ? (
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0" strokeWidth={2.5} />
+                    ) : (
+                      <XCircle size={16} className="text-red-500 shrink-0" strokeWidth={2.5} />
+                    )}
+                    <span className="text-slate-900 text-base font-semibold truncate tracking-tight">
                       {wh.url}
                     </span>
                     <button
                       onClick={() => copyToClipboard(wh.url, wh.id)}
-                      className="rounded p-1 transition-colors shrink-0"
-                      style={{ color: 'var(--ink-tertiary)' }}
-                      onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
-                      onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                      className="text-slate-400 hover:text-primary-600 transition-colors shrink-0 p-1 hover:bg-primary-50 rounded-md"
                       title="Copiar URL"
                     >
                       {copiedId === wh.id
-                        ? <Check size={12} style={{ color: 'var(--semantic-success)' }} />
-                        : <Copy size={12} />
+                        ? <Check size={14} className="text-emerald-500" />
+                        : <Copy size={14} />
                       }
                     </button>
                   </div>
 
-                  {/* Events */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
+                  {/* Eventos */}
+                  <div className="flex flex-wrap gap-2 mb-4">
                     {wh.events.map((event: string) => (
                       <span
                         key={event}
-                        className="rounded px-2 py-0.5 font-mono text-[10px] font-semibold"
-                        style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)', border: '1px solid var(--border-0)' }}
+                        className="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200"
                       >
                         {event}
                       </span>
@@ -216,49 +212,43 @@ export default function WebhooksPage() {
                   </div>
 
                   {/* Stats */}
-                  <div
-                    className="inline-flex items-center gap-4 rounded-md px-3 py-1.5"
-                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}
-                  >
-                    <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                      <div className="status-dot" style={{ backgroundColor: 'var(--semantic-success)' }} />
+                  <div className="flex items-center gap-5 mt-2 bg-slate-50 px-3 py-2 rounded-lg inline-flex border border-slate-100">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                       {wh.successCount} exitosos
                     </span>
-                    <span className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                      <div className="status-dot" style={{ backgroundColor: 'var(--semantic-danger)' }} />
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
                       {wh.failureCount} fallidos
                     </span>
                     {wh.lastTriggeredAt && (
-                      <span className="text-[11px]" style={{ color: 'var(--ink-muted)', borderLeft: '1px solid var(--border-1)', paddingLeft: '1rem' }}>
+                      <span className="text-xs font-medium text-slate-400 border-l border-slate-200 pl-4">
                         Última vez: {new Date(wh.lastTriggeredAt).toLocaleDateString()}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1.5 mt-3 sm:mt-0 sm:shrink-0">
+                {/* Acciones */}
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => testMutation.mutate(wh.id)}
                     disabled={testMutation.isPending}
-                    className="btn-secondary !py-1.5 !px-2.5 !text-[11px]"
+                    className="btn-secondary !text-xs !py-1.5 !px-3"
                     title="Enviar evento de prueba"
                   >
                     {testMutation.isPending
-                      ? <Loader2 size={11} className="animate-spin" />
-                      : <TestTube2 size={11} />
+                      ? <Loader2 size={12} className="animate-spin" />
+                      : <TestTube2 size={12} />
                     }
                     Test
                   </button>
                   <button
                     onClick={() => deleteMutation.mutate(wh.id)}
-                    className="rounded-lg p-2 transition-colors"
-                    style={{ color: 'var(--ink-tertiary)' }}
-                    onMouseEnter={(e) => { ;(e.currentTarget as HTMLElement).style.color = 'var(--semantic-danger)'; ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)' }}
-                    onMouseLeave={(e) => { ;(e.currentTarget as HTMLElement).style.color = 'var(--ink-tertiary)'; ;(e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Eliminar"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

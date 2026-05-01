@@ -11,58 +11,61 @@ export default function DealsPage() {
 
   const { data: pipelines, isLoading } = useQuery({
     queryKey: ['pipelines'],
-    queryFn: () => pipelinesApi.list().then((r) => r.data),
+    queryFn:  () => pipelinesApi.list().then((r) => r.data),
   })
 
+  // Redirigir automáticamente si hay un solo pipeline
   useEffect(() => {
     if (pipelines?.length === 1) {
-      router.push(`/leads/${pipelines[0].id}`)
+      router.push(`/deals/${pipelines[0].id}`)
     }
   }, [pipelines, router])
 
-  if (isLoading || pipelines?.length === 1) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin" size={24} style={{ color: 'var(--accent)' }} />
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="animate-spin text-primary-500" size={40} />
+      </div>
+    )
+  }
+
+  // Mientras redirige, mostrar loading
+  if (pipelines?.length === 1) {
+    return (
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="animate-spin text-primary-500" size={40} />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-[900px] animate-fade-in p-4 pb-20 md:p-8 md:pb-8">
-      <div className="mb-6 md:mb-8">
-        <h1 className="page-title">Leads</h1>
-        <p className="page-subtitle">Elegi el pipeline donde queres operar tus conversaciones entrantes.</p>
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Embudos de Ventas</h1>
+        <p className="text-slate-500 font-medium mt-1">Seleccioná un pipeline para administrar tus negocios</p>
       </div>
 
-      <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
         {pipelines?.map((pipeline: any) => (
           <button
             key={pipeline.id}
-            onClick={() => router.push(`/leads/${pipeline.id}`)}
-            className="interactive-card group flex items-center justify-between p-5 text-left"
+            onClick={() => router.push(`/deals/${pipeline.id}`)}
+            className="interactive-card p-5 text-left group flex items-center justify-between"
           >
             <div className="flex items-center gap-4">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-lg"
-                style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
-              >
-                <KanbanSquare size={18} strokeWidth={2} />
+              <div className="w-12 h-12 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center text-primary-600 shadow-sm relative overflow-hidden">
+                <KanbanSquare size={20} className="text-primary-600 relative z-10" strokeWidth={2.5} />
               </div>
               <div>
-                <p className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
-                  {pipeline.name}
-                </p>
-                <p className="mt-0.5 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                  {pipeline.stages.length} stages
+                <p className="text-slate-900 font-bold text-lg tracking-tight group-hover:text-primary-600 transition-colors">{pipeline.name}</p>
+                <p className="text-slate-500 font-medium text-sm mt-0.5">
+                  {pipeline.stages.length} etapas
                 </p>
               </div>
             </div>
-            <ArrowRight
-              size={14}
-              style={{ color: 'var(--ink-tertiary)' }}
-              className="transition-transform group-hover:translate-x-0.5"
-            />
+            <div className="w-8 h-8 rounded-lg border border-slate-100 text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600 group-hover:border-primary-100 flex items-center justify-center transition-all bg-white">
+               <ArrowRight size={16} strokeWidth={2.5} />
+            </div>
           </button>
         ))}
       </div>

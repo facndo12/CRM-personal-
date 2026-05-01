@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/lib/api'
 import type { ApiKey } from '@/types'
-import { Key, Plus, Trash2, Copy, Check, Loader2, Eye, EyeOff, X } from 'lucide-react'
+import { Key, Plus, Trash2, Copy, Check, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function ApiKeysPage() {
   const queryClient                   = useQueryClient()
@@ -22,6 +22,8 @@ export default function ApiKeysPage() {
   const createMutation = useMutation({
     mutationFn: () => authApi.createApiKey({ name }),
     onSuccess: (res) => {
+      // El backend devuelve la key completa UNA SOLA VEZ
+      // después solo guarda el hash — por eso la mostramos ahora
       setNewKey(res.data.rawKey)
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       setShowForm(false)
@@ -41,204 +43,181 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="animate-fade-in p-4 md:p-8 max-w-[900px]">
+    <div className="p-6 max-w-5xl mx-auto animate-fade-in">
 
       {/* Header */}
-      <div className="mb-6 md:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="page-title">API Keys</h1>
-          <p className="page-subtitle">Tokens de acceso para integraciones externas</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">API Keys</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Gestioná tokens de acceso para integraciones externas
+          </p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary self-start sm:self-auto">
-          <Plus size={15} strokeWidth={2.5} />
-          Nueva API Key
+        <button
+          onClick={() => setShowForm(true)}
+          className="btn-primary"
+        >
+          <Plus size={18} strokeWidth={2.5} />
+          Crear API Key
         </button>
       </div>
 
-      {/* New key reveal banner */}
+      {/* Alerta — nueva key recién creada */}
       {newKey && (
-        <div
-          className="animate-slide-up mb-6 rounded-lg p-4"
-          style={{ background: 'var(--semantic-warning-bg)', border: '1px solid rgba(217,119,6,0.2)' }}
-        >
-          <p className="mb-3 text-[12px] font-semibold" style={{ color: 'var(--semantic-warning)' }}>
-            ⚠ Copiá esta key ahora — no se volverá a mostrar.
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8 shadow-sm animate-slide-up">
+          <p className="text-amber-800 text-sm font-bold mb-3 flex items-center gap-2">
+            <span className="bg-amber-100 p-1 rounded">⚠️</span> Importante: Copiá esta key ahora. Por seguridad, no se volverá a mostrar.
           </p>
-          <div
-            className="flex items-center gap-3 rounded-md p-2"
-            style={{ background: 'var(--surface-0)', border: '1px solid var(--border-1)' }}
-          >
-            <code className="flex-1 break-all font-mono text-[12px] font-semibold" style={{ color: 'var(--semantic-success)' }}>
+          <div className="flex items-center gap-3 bg-white border border-amber-200/60 rounded-xl p-2 pl-4">
+            <code className="text-emerald-600 font-bold text-sm flex-1 break-all font-mono tracking-tight">
               {newKey}
             </code>
             <button
               onClick={() => copyToClipboard(newKey, 'new')}
-              className="btn-secondary !py-1.5 !px-2.5 !text-[11px] shrink-0"
+              className="text-slate-400 hover:text-primary-600 bg-slate-50 hover:bg-primary-50 px-3 py-2 rounded-lg transition-colors shrink-0 border border-slate-200 hover:border-primary-200 flex items-center gap-2 font-bold text-xs"
             >
-              {copiedId === 'new' ? <><Check size={12} /> Copiada</> : <><Copy size={12} /> Copiar</>}
+              {copiedId === 'new' ? (
+                <><Check size={16} className="text-emerald-500" /> Copiada</>
+              ) : (
+                <><Copy size={16} /> Copiar</>
+              )}
             </button>
           </div>
           <button
             onClick={() => setNewKey(null)}
-            className="mt-3 text-[11px] font-medium transition-opacity hover:opacity-70"
-            style={{ color: 'var(--semantic-warning)' }}
+            className="text-xs font-bold text-amber-700/60 hover:text-amber-700 mt-4 transition-colors"
           >
-            Cerrar mensaje
+            Cerrar este mensaje
           </button>
         </div>
       )}
 
-      {/* Create form */}
+      {/* Formulario */}
       {showForm && (
-        <div className="animate-slide-up interactive-card mb-6 p-5" style={{ borderLeft: '2px solid var(--accent)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-label flex items-center gap-1.5"><Key size={11} /> Nueva credencial</p>
-            <button
-              onClick={() => setShowForm(false)}
-              className="rounded p-1 transition-colors"
-              style={{ color: 'var(--ink-tertiary)' }}
-              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
-              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div className="flex gap-3">
+        <div className="interactive-card p-6 mb-8 animate-slide-up">
+          <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
+             <Key size={20} className="text-primary-500"/> Registrar nueva credencial
+          </h3>
+          <div className="flex flex-col sm:flex-row gap-4">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Nombre identificador (ej. n8n producción) *"
-              className="ctrl-input flex-1"
+              placeholder="Nombre identificador (ej: n8n producción) *"
+              className="flex-1 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-[3px] focus:ring-primary-500/30 focus:border-primary-500 font-medium placeholder-slate-400 transition-all"
               autoFocus
             />
-            <button
-              onClick={() => createMutation.mutate()}
-              disabled={!name || createMutation.isPending}
-              className="btn-primary shrink-0"
-            >
-              {createMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={15} strokeWidth={2.5} />}
-              Generar
-            </button>
+            <div className="flex gap-3">
+                <button
+                onClick={() => createMutation.mutate()}
+                disabled={!name || createMutation.isPending}
+                className="btn-primary py-3"
+                >
+                {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} strokeWidth={2.5} />}
+                Generar Token
+                </button>
+                <button
+                onClick={() => setShowForm(false)}
+                className="btn-secondary py-3"
+                >
+                Cancelar
+                </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* List */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-5 w-5 animate-spin rounded-full border-2" style={{ borderColor: 'var(--border-2)', borderTopColor: 'var(--accent)' }} />
+          <Loader2 className="animate-spin text-primary-500" size={40} />
         </div>
       ) : apiKeys?.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-xl py-24 text-center"
-          style={{ border: '1px dashed var(--border-2)' }}
-        >
-          <Key size={36} strokeWidth={1.25} className="mb-3" style={{ color: 'var(--ink-muted)' }} />
-          <p className="text-sm font-medium" style={{ color: 'var(--ink-secondary)' }}>Sin API Keys generadas</p>
-          <p className="mt-1 text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
+        <div className="text-center py-24 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl">
+          <Key size={56} className="text-slate-300 mx-auto mb-4" strokeWidth={1.5} />
+          <p className="text-slate-500 font-medium text-lg">No hay API Keys generadas</p>
+          <p className="text-slate-400 text-sm mt-1">
             Creá una credencial para automatizar el CRM con otros servicios.
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {apiKeys?.map((apiKey) => (
-            <div key={apiKey.id} className="interactive-card flex flex-col sm:flex-row sm:items-center gap-4 p-4">
-              {/* Icon */}
-              <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
-              >
-                <Key size={16} strokeWidth={2} />
+            <div
+              key={apiKey.id}
+              className="interactive-card p-5 flex items-center gap-5"
+            >
+              {/* Ícono */}
+              <div className="w-12 h-12 bg-primary-50 border border-primary-100 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                <Key size={20} className="text-primary-500" strokeWidth={2.5}/>
               </div>
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink-primary)' }}>
-                  {apiKey.name}
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <code
-                    className="rounded px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wider"
-                    style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)', border: '1px solid var(--border-0)' }}
-                  >
+                <p className="text-slate-900 text-base font-extrabold tracking-tight">{apiKey.name}</p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <code className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1 rounded-md tracking-wider">
                     {visibleId === apiKey.id
                       ? apiKey.keyPrefix + '••••••••••••••••'
                       : apiKey.keyPrefix + '••••'
                     }
                   </code>
                   <button
-                    onClick={() => setVisibleId(visibleId === apiKey.id ? null : apiKey.id)}
-                    className="rounded p-1 transition-colors"
-                    style={{ color: 'var(--ink-tertiary)' }}
-                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'}
-                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                    onClick={() =>
+                      setVisibleId(visibleId === apiKey.id ? null : apiKey.id)
+                    }
+                    className="p-1 px-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-md transition-colors flex items-center justify-center"
+                    title={visibleId === apiKey.id ? 'Ocultar resto del token' : 'Revelar logitud del token'}
                   >
-                    {visibleId === apiKey.id ? <EyeOff size={12} /> : <Eye size={12} />}
+                    {visibleId === apiKey.id
+                      ? <EyeOff size={14} />
+                      : <Eye size={14} />
+                    }
                   </button>
                 </div>
-                <div className="mt-1.5 flex items-center gap-3">
-                  <p className="text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>
-                    Creada el {new Date(apiKey.createdAt).toLocaleDateString()}
-                  </p>
-                  {apiKey.lastUsedAt && (
-                    <span
-                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                      style={{ background: 'var(--accent-muted)', color: 'var(--accent-text)', border: '1px solid rgba(124,58,237,0.15)' }}
-                    >
-                      Último uso: {new Date(apiKey.lastUsedAt).toLocaleDateString()}
-                    </span>
-                  )}
+                <div className="flex items-center gap-4 mt-2">
+                    <p className="text-xs font-medium text-slate-400">
+                    Generada el {new Date(apiKey.createdAt).toLocaleDateString()}
+                    </p>
+                    {apiKey.lastUsedAt && (
+                        <p className="text-xs font-medium text-primary-600 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-100">
+                        Último uso: {new Date(apiKey.lastUsedAt).toLocaleDateString()}
+                        </p>
+                    )}
                 </div>
               </div>
 
-              {/* Delete */}
+              {/* Eliminar */}
               <button
                 onClick={() => {
-                  if (confirm(`¿Revocar la API Key "${apiKey.name}"? Las integraciones dejarán de funcionar.`)) {
-                    deleteMutation.mutate(apiKey.id)
-                  }
+                   if (confirm(`¿Estás seguro que querés revocar la API Key "${apiKey.name}"? Cualquier integración que la use dejará de funcionar.`)) {
+                       deleteMutation.mutate(apiKey.id)
+                   }
                 }}
-                className="rounded-lg p-2 transition-colors"
-                style={{ color: 'var(--ink-tertiary)' }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.color = 'var(--semantic-danger)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'var(--semantic-danger-bg)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.color = 'var(--ink-tertiary)'
-                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-                }}
-                title="Revocar key"
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                title="Revocar key permanentemente"
               >
-                <Trash2 size={15} />
+                <Trash2 size={18} />
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Usage guide */}
-      <div
-        className="mt-10 rounded-xl p-5"
-        style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}
-      >
-        <p className="section-label flex items-center gap-1.5 mb-3">
-          <Key size={11} /> Cómo autenticar consultas API
+      {/* Explicación de uso */}
+      <div className="mt-12 bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <h3 className="text-slate-900 text-sm font-bold mb-4 uppercase tracking-widest flex items-center gap-2">
+            <Key size={16} className="text-primary-500" strokeWidth={2.5}/> Cómo autenticar consultas API
+        </h3>
+        <p className="text-slate-600 text-sm font-medium mb-3">
+          Deberás incluir un encabezado HTTP personalizado en cada petición que hagas a los servidores del CRM:
         </p>
-        <p className="mb-3 text-[12px]" style={{ color: 'var(--ink-secondary)' }}>
-          Incluí este encabezado HTTP en cada petición a los servidores del CRM:
-        </p>
-        <div
-          className="rounded-lg p-4 font-mono text-[12px]"
-          style={{ background: 'var(--surface-0)', border: '1px solid var(--border-1)' }}
-        >
-          <span style={{ color: 'var(--ink-tertiary)' }}>Header:</span>{' '}
-          <span style={{ color: 'var(--ink-primary)', fontWeight: 600 }}>X-API-Key</span>
-          <br />
-          <span style={{ color: 'var(--ink-tertiary)' }}>Value:</span>{' '}
-          <span style={{ color: 'var(--accent)' }}>crm_tu_token_seguro_aqui</span>
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-sm">
+            <span className="font-bold text-slate-400">Header:</span> <code className="font-bold text-slate-900">X-API-Key</code>
+            <br />
+            <span className="font-bold text-slate-400">Value:</span> <code className="font-bold text-primary-600">crm_tu_token_seguro_aqui</code>
         </div>
       </div>
+
     </div>
   )
 }
