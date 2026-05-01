@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { Suspense, startTransition, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
@@ -213,7 +213,7 @@ function MessageAttachments({
   )
 }
 
-export default function InboxPage() {
+function InboxPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -851,5 +851,19 @@ export default function InboxPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function InboxPage() {
+  return (
+    <Suspense
+      fallback={(
+        <div className="flex min-h-full items-center justify-center p-6">
+          <Loader2 className="animate-spin text-primary-600" size={30} />
+        </div>
+      )}
+    >
+      <InboxPageContent />
+    </Suspense>
   )
 }
