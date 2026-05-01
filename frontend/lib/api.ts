@@ -2,12 +2,19 @@ import axios from 'axios'
 import { auth } from './auth'
 import type {
   Contact, Deal, Webhook,
-  Pipeline, Stage, InboxConnection, EmbeddedSignupConfig, InboxConversation, InboxMessage, PaginatedResult,
-  RegisterWhatsAppPhoneResult,
+  Pipeline, Stage, InboxConnection, InboxConversation, InboxMessage, PaginatedResult,
 } from '@/types'
 
 // Apunta al backend que ya tenemos corriendo
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+
+export function resolveApiAssetUrl(value?: string | null) {
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  const apiOrigin = BASE_URL.replace(/\/api\/v1\/?$/, '')
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`
+  return `${apiOrigin}${normalizedPath}`
+}
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -193,6 +200,29 @@ export const dashboardApi = {
   get: () => api.get('/dashboard'),
 }
 
+export const whatsappApi = {
+  getSession: () =>
+    api.get('/whatsapp/session'),
+
+  connect: () =>
+    api.post('/whatsapp/connect', { mode: 'qr' }),
+
+  disconnect: () =>
+    api.post('/whatsapp/disconnect'),
+
+  listChats: (params?: { search?: string }) =>
+    api.get('/whatsapp/chats', { params }),
+
+  listMessages: (jid: string, params?: { limit?: number }) =>
+    api.get(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { params }),
+
+  syncHistory: (jid: string, params?: { count?: number }) =>
+    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/history`, undefined, { params }),
+
+  sendMessage: (jid: string, text: string) =>
+    api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { text }),
+}
+
 // Equipo
 export const teamApi = {
   list: () =>
@@ -238,32 +268,4 @@ export const inboxApi = {
   testConnection: (id: string) =>
     api.post(`/inbox/connections/${id}/test`),
 
-  registerWhatsAppPhone: (id: string, data: { pin: string }) =>
-    api.post<RegisterWhatsAppPhoneResult>(`/inbox/connections/${id}/register-phone`, data),
-
-  getEmbeddedSignupConfig: () =>
-    api.get<EmbeddedSignupConfig>('/inbox/meta/whatsapp/embedded-signup/config'),
-
-  completeEmbeddedSignup: (data: {
-    phoneNumberId: string
-    accessToken: string
-    businessId?: string
-    wabaId?: string
-    displayPhoneNumber?: string
-    verifiedName?: string
-    qualityRating?: string
-    name?: string
-  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete', data),
-
-  completeEmbeddedSignupFromCode: (data: {
-    code: string
-    phoneNumberId: string
-    businessId?: string
-    wabaId?: string
-    displayPhoneNumber?: string
-    verifiedName?: string
-    qualityRating?: string
-    name?: string
-    redirectUri?: string
-  }) => api.post('/inbox/meta/whatsapp/embedded-signup/complete-from-code', data),
 }

@@ -12,6 +12,8 @@ const envSchema = z.object({
   META_APP_ID: z.string().min(1).optional(),
   META_APP_SECRET: z.string().min(1).optional(),
   META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: z.string().min(1).optional(),
+  WHATSAPP_AUTH_DIR: z.string().optional(),
+  WHATSAPP_MEDIA_DIR: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
