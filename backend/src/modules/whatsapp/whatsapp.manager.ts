@@ -125,8 +125,26 @@ function buildHistoryContactMap(contacts: any[]): HistoryContactMap {
 
 function extractPhoneNumberFromJid(jid?: string | null) {
   if (!jid) return null
+  if (jid.endsWith('@lid')) return null
   const match = jid.match(/^(\d+)(?=@)/)
   return match?.[1] ?? null
+}
+
+function isLidJid(jid?: string | null) {
+  return Boolean(jid?.endsWith('@lid'))
+}
+
+function isPhoneUserJid(jid?: string | null) {
+  return Boolean(jid?.endsWith('@s.whatsapp.net'))
+}
+
+function ensureJidServer(jid: string | null | undefined, server: '@lid' | '@s.whatsapp.net') {
+  const normalized = normalizeLabel(jid)
+  if (!normalized) return null
+  if (normalized.endsWith('@lid') || normalized.endsWith('@s.whatsapp.net')) return normalized
+
+  const digits = normalizePhoneNumber(normalized)
+  return digits ? `${digits}${server}` : null
 }
 
 function supportsChat(jid?: string | null) {
@@ -470,6 +488,7 @@ export class WhatsAppManager {
   private baileysVersion: number[] | null = null
   private messageSchemaCapabilitiesPromise: Promise<{ quoted: boolean }> | null = null
   private devMaintenancePromise: Promise<void> | null = null
+  private lidAliases = new Map<string, Map<string, string>>()
 
   isRuntimeCompatible() {
     if (config.NODE_ENV === 'development') {
@@ -749,8 +768,9 @@ export class WhatsAppManager {
 
   async listMessages(workspaceId: string, jid: string, limit = 60) {
     await this.ensureDevMaintenanceAppliedOnce()
+    const canonicalJid = await this.resolveCanonicalJid(workspaceId, jid)
     const chat = await prisma.whatsAppChat.findUnique({
-      where: { workspaceId_jid: { workspaceId, jid } },
+      where: { workspaceId_jid: { workspaceId, jid: canonicalJid } },
       include: {
         contact: {
           select: { id: true, firstName: true, lastName: true },
@@ -804,6 +824,7 @@ export class WhatsAppManager {
 
   async sendTextMessage(workspaceId: string, jid: string, text: string) {
     this.assertRuntimeReady()
+    const sendJid = await this.resolveCanonicalJid(workspaceId, jid)
 
     let entry = this.sockets.get(workspaceId)
     if (!entry) {
@@ -820,10 +841,10 @@ export class WhatsAppManager {
       throw new AppError(409, 'WhatsApp todavia no esta conectado. Espera unos segundos y reintenta.', 'WHATSAPP_NOT_CONNECTED')
     }
 
-    const sent = await entry.sock.sendMessage(jid, { text })
+    const sent = await entry.sock.sendMessage(sendJid, { text })
     const persisted =
       (sent ? await this.persistMessage(workspaceId, sent) : null) ??
-      await this.persistOutgoingFallback(workspaceId, jid, text, sent)
+      await this.persistOutgoingFallback(workspaceId, sendJid, text, sent)
     return persisted ? this.serializeMessageRecord(persisted) : null
   }
 
@@ -923,6 +944,15 @@ export class WhatsAppManager {
     })
     sock.ev.on('chats.update', (payload: any[]) => {
       void this.applyChatUpdates(workspaceId, payload ?? [])
+    })
+    sock.ev.on('chats.phoneNumberShare', (payload: any) => {
+      void this.rememberPhoneNumberShare(workspaceId, payload?.lid, payload?.jid)
+    })
+    sock.ev.on('contacts.upsert', (payload: any[]) => {
+      void this.rememberContactAliases(workspaceId, payload ?? [])
+    })
+    sock.ev.on('contacts.update', (payload: any[]) => {
+      void this.rememberContactAliases(workspaceId, payload ?? [])
     })
     sock.ev.on('messages.upsert', (payload: any) => {
       void this.persistMessages(workspaceId, payload?.messages ?? [])
@@ -1119,6 +1149,7 @@ export class WhatsAppManager {
     const chats = Array.isArray(payload?.chats) ? payload.chats : []
     const messages = Array.isArray(payload?.messages) ? payload.messages : []
     const contacts = Array.isArray(payload?.contacts) ? payload.contacts : []
+    await this.rememberContactAliases(workspaceId, contacts)
     const historyContacts = buildHistoryContactMap(contacts)
 
     const relevantChats = chats.filter((chat) => {
@@ -1157,9 +1188,135 @@ export class WhatsAppManager {
     )
   }
 
+  private getWorkspaceLidAliases(workspaceId: string) {
+    let aliases = this.lidAliases.get(workspaceId)
+    if (!aliases) {
+      aliases = new Map()
+      this.lidAliases.set(workspaceId, aliases)
+    }
+    return aliases
+  }
+
+  private async rememberPhoneNumberShare(workspaceId: string, lid?: string | null, jid?: string | null) {
+    const lidJid = ensureJidServer(lid, '@lid')
+    const phoneJid = ensureJidServer(jid, '@s.whatsapp.net')
+
+    if (!lidJid || !phoneJid || !isLidJid(lidJid) || !isPhoneUserJid(phoneJid)) return
+
+    this.getWorkspaceLidAliases(workspaceId).set(lidJid, phoneJid)
+    await this.mergeChatAlias(workspaceId, lidJid, phoneJid)
+  }
+
+  private async rememberContactAliases(workspaceId: string, contacts: any[]) {
+    for (const contact of contacts) {
+      const id = normalizeLabel(contact?.id)
+      const lid = normalizeLabel(contact?.lid)
+      const phoneJid = isPhoneUserJid(id) ? id : ensureJidServer(contact?.jid, '@s.whatsapp.net')
+      const lidJid = isLidJid(lid) ? lid : ensureJidServer(lid, '@lid')
+
+      if (phoneJid && lidJid) {
+        await this.rememberPhoneNumberShare(workspaceId, lidJid, phoneJid)
+      }
+    }
+  }
+
+  private async resolveCanonicalJid(workspaceId: string, jid: string) {
+    if (!isLidJid(jid)) return jid
+
+    const canonical = this.getWorkspaceLidAliases(workspaceId).get(jid)
+    if (!canonical) return jid
+
+    await this.mergeChatAlias(workspaceId, jid, canonical)
+    return canonical
+  }
+
+  private async mergeChatAlias(workspaceId: string, fromJid: string, toJid: string) {
+    if (fromJid === toJid) return
+
+    const [source, target] = await Promise.all([
+      prisma.whatsAppChat.findUnique({
+        where: { workspaceId_jid: { workspaceId, jid: fromJid } },
+      }),
+      prisma.whatsAppChat.findUnique({
+        where: { workspaceId_jid: { workspaceId, jid: toJid } },
+      }),
+    ])
+
+    if (!source) return
+
+    const toPhoneNumber = extractPhoneNumberFromJid(toJid)
+
+    if (!target) {
+      await prisma.$transaction(async (tx: any) => {
+        await tx.whatsAppMessage.updateMany({
+          where: { workspaceId, chatId: source.id },
+          data: { remoteJid: toJid },
+        })
+        await tx.whatsAppChat.update({
+          where: { id: source.id },
+          data: {
+            jid: toJid,
+            phoneNumber: toPhoneNumber ?? undefined,
+          },
+        })
+      })
+      return
+    }
+
+    const sourceIsNewer =
+      source.lastMessageAt &&
+      (!target.lastMessageAt || source.lastMessageAt > target.lastMessageAt)
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe(
+        `
+          DELETE FROM whatsapp_messages source
+          WHERE source."workspaceId" = $1
+            AND source."chatId" = $2
+            AND EXISTS (
+              SELECT 1
+              FROM whatsapp_messages target
+              WHERE target."workspaceId" = source."workspaceId"
+                AND target."remoteJid" = $3
+                AND target."messageId" = source."messageId"
+            )
+        `,
+        workspaceId,
+        source.id,
+        toJid
+      )
+
+      await tx.whatsAppMessage.updateMany({
+        where: { workspaceId, chatId: source.id },
+        data: {
+          chatId: target.id,
+          remoteJid: toJid,
+        },
+      })
+
+      await tx.whatsAppChat.update({
+        where: { id: target.id },
+        data: {
+          displayName: target.displayName || source.displayName || undefined,
+          phoneNumber: target.phoneNumber || toPhoneNumber || source.phoneNumber || undefined,
+          contactId: target.contactId || source.contactId || undefined,
+          lastMessageAt: sourceIsNewer ? source.lastMessageAt : undefined,
+          lastMessagePreview: sourceIsNewer ? source.lastMessagePreview : undefined,
+          lastMessageFromMe: sourceIsNewer ? source.lastMessageFromMe : undefined,
+          unreadCount: target.unreadCount + source.unreadCount,
+        },
+      })
+
+      await tx.whatsAppChat.delete({
+        where: { id: source.id },
+      })
+    })
+  }
+
   private async persistChat(workspaceId: string, chat: any, historyContacts?: HistoryContactMap) {
-    const jid = chat?.id ?? chat?.jid
-    if (!supportsChat(jid)) return null
+    const rawJid = chat?.id ?? chat?.jid
+    if (!supportsChat(rawJid)) return null
+    const jid = await this.resolveCanonicalJid(workspaceId, rawJid)
 
     const session = await this.ensureSessionRecord(workspaceId)
     const phoneNumber = extractPhoneNumberFromJid(jid)
@@ -1167,7 +1324,7 @@ export class WhatsAppManager {
     const contactName = linkedContact
       ? `${linkedContact.firstName}${linkedContact.lastName ? ` ${linkedContact.lastName}` : ''}`
       : null
-    const historyContactName = historyContacts?.get(jid) ?? null
+    const historyContactName = historyContacts?.get(jid) ?? historyContacts?.get(rawJid) ?? null
     const isGroup = jid.endsWith('@g.us')
     const groupName = isGroup ? await this.resolveGroupDisplayName(workspaceId, jid) : null
     const displayName = selectChatDisplayName(
@@ -1235,9 +1392,10 @@ export class WhatsAppManager {
   }
 
   private async persistMessage(workspaceId: string, message: any, options?: PersistMessageOptions) {
-    const remoteJid = message?.key?.remoteJid ?? message?.remoteJid
+    const rawRemoteJid = message?.key?.remoteJid ?? message?.remoteJid
     const messageId = message?.key?.id
-    if (!supportsChat(remoteJid) || !messageId) return null
+    if (!supportsChat(rawRemoteJid) || !messageId) return null
+    const remoteJid = await this.resolveCanonicalJid(workspaceId, rawRemoteJid)
 
     let chat = await prisma.whatsAppChat.findUnique({
       where: { workspaceId_jid: { workspaceId, jid: remoteJid } },
@@ -1593,6 +1751,7 @@ export class WhatsAppManager {
   }
 
   private async persistOutgoingFallback(workspaceId: string, jid: string, text: string, sent?: any) {
+    jid = await this.resolveCanonicalJid(workspaceId, jid)
     let chat = await prisma.whatsAppChat.findUnique({
       where: { workspaceId_jid: { workspaceId, jid } },
     })
@@ -1742,10 +1901,11 @@ export class WhatsAppManager {
 
   private async applyMessageUpdates(workspaceId: string, updates: any[]) {
     for (const item of updates) {
-      const remoteJid = item?.key?.remoteJid
+      const rawRemoteJid = item?.key?.remoteJid
       const messageId = item?.key?.id
       const patch = item?.update ?? {}
-      if (!remoteJid || !messageId) continue
+      if (!rawRemoteJid || !messageId) continue
+      const remoteJid = await this.resolveCanonicalJid(workspaceId, rawRemoteJid)
 
       const updateData: Record<string, unknown> = {}
       if (patch?.status !== undefined) {
@@ -1790,10 +1950,11 @@ export class WhatsAppManager {
 
     for (const key of payload.keys) {
       if (!key?.remoteJid || !key?.id) continue
+      const remoteJid = await this.resolveCanonicalJid(workspaceId, key.remoteJid)
       await prisma.whatsAppMessage.deleteMany({
         where: {
           workspaceId,
-          remoteJid: key.remoteJid,
+          remoteJid,
           messageId: key.id,
         },
       })
