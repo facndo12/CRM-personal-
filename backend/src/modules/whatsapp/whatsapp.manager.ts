@@ -502,11 +502,15 @@ export class WhatsAppManager {
   private profilePhotoCache = new Map<string, Map<string, ProfilePhotoCacheEntry>>()
 
   isRuntimeCompatible() {
+    if (process.env.VERCEL === '1') {
+      return false
+    }
+
     if (config.NODE_ENV === 'development') {
       return true
     }
 
-    return process.env.VERCEL !== '1'
+    return true
   }
 
   isPackageInstalled() {
