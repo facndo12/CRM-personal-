@@ -41,6 +41,7 @@ desktop.ini
 
 # Testing
 coverage/
+output/
 
 # Turbopack / Next.js cache
 .turbo/

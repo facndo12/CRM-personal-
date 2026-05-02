@@ -109,7 +109,7 @@ export default function PipelinesPage() {
     <div className="p-6 max-w-5xl mx-auto animate-fade-in">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Embudo de Ventas (Pipelines)</h1>
-        <p className="text-slate-500 font-medium mt-1">Configurá las etapas por las que pasan tus negocios</p>
+        <p className="text-slate-500 font-medium mt-1">Configurá las etapas por las que pasan tus leads</p>
       </div>
 
       {/* Crear pipeline */}
@@ -195,7 +195,7 @@ export default function PipelinesPage() {
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                   <Link
-                    href={`/deals/${pipeline.id}`}
+                      href={`/leads/${pipeline.id}`}
                     className="text-xs font-bold text-primary-600 hover:text-primary-700 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-primary-100 mr-2"
                   >
                     Ver tablero Kanban

@@ -102,6 +102,7 @@ export interface KanbanStage {
 
 export interface KanbanCard {
   id: string
+  leadNumber: string
   title: string
   value?: number
   currency: string
@@ -114,6 +115,18 @@ export interface KanbanCard {
   expectedCloseDate?: string
   daysInStage: number
   isRotten: boolean
+  chat?: {
+    id: string
+    jid: string
+    displayName?: string | null
+    phoneNumber?: string | null
+    profileImageUrl?: string | null
+    unreadCount: number
+    lastMessageAt?: string | null
+    lastMessagePreview?: string | null
+    lastMessageFromMe?: boolean | null
+    contactName?: string | null
+  }
   createdAt: string
   updatedAt: string
 }
@@ -209,6 +222,92 @@ export interface DashboardData {
     contactName: string | null
     createdAt:   string
   }[]
+}
+
+// WhatsApp QR
+export type WhatsAppConnectionStatus =
+  | 'DISCONNECTED'
+  | 'CONNECTING'
+  | 'PAIRING'
+  | 'CONNECTED'
+  | 'ERROR'
+
+export interface WhatsAppSessionSnapshot {
+  id: string
+  workspaceId: string
+  status: WhatsAppConnectionStatus
+  phoneNumber?: string | null
+  phoneJid?: string | null
+  pushName?: string | null
+  pairingCode?: string | null
+  pairingCodeIssuedAt?: string | null
+  qrCode?: string | null
+  lastConnectedAt?: string | null
+  lastDisconnectedAt?: string | null
+  lastDisconnectCode?: number | null
+  lastError?: string | null
+  createdAt: string
+  updatedAt: string
+  packageInstalled: boolean
+  runtimeCompatible: boolean
+  authAvailable: boolean
+  hasActiveSocket: boolean
+  chatCount: number
+}
+
+export interface WhatsAppChat {
+  id: string
+  workspaceId: string
+  sessionId: string
+  jid: string
+  displayName?: string | null
+  phoneNumber?: string | null
+  profileImageUrl?: string | null
+  isGroup: boolean
+  unreadCount: number
+  archived: boolean
+  pinned: boolean
+  mutedUntil?: string | null
+  lastMessageAt?: string | null
+  lastMessagePreview?: string | null
+  lastMessageFromMe?: boolean | null
+  contactId?: string | null
+  contactName?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WhatsAppMessage {
+  id: string
+  workspaceId: string
+  sessionId: string
+  chatId: string
+  remoteJid: string
+  messageId: string
+  fromMe: boolean
+  participant?: string | null
+  pushName?: string | null
+  messageType: string
+  text?: string | null
+  status?: string | null
+  mediaUrl?: string | null
+  mediaMimeType?: string | null
+  mediaFileName?: string | null
+  mediaSizeBytes?: number | null
+  mediaDurationSeconds?: number | null
+  quotedMessageId?: string | null
+  quotedText?: string | null
+  quotedMessageType?: string | null
+  sentAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WhatsAppMessagesPayload {
+  chat: WhatsAppChat | null
+  items: WhatsAppMessage[]
+  totalMessages: number
+  historyAnchorAvailable: boolean
 }
 
 // Pipelines

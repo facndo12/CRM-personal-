@@ -1,18 +1,52 @@
 @import "tailwindcss";
 
 :root {
-  --background: #e0f2fe;
-  --foreground: #0f172a;
-  --surface: rgba(240, 249, 255, 0.88);
-  --surface-strong: #f8fdff;
-  --surface-muted: #dbeafe;
-  --border-soft: rgba(148, 163, 184, 0.18);
-  --border-strong: rgba(148, 163, 184, 0.28);
-  --overlay: rgba(248, 250, 252, 0.72);
-  --sidebar-background: rgba(248, 252, 255, 0.9);
-  --panel-border: #d6e3f1;
-  --panel-border-strong: #c1d3e8;
-  --button-border: #cbd5e1;
+  --canvas: #f8fafc;
+  --surface-0: #ffffff;
+  --surface-1: #f1f5f9;
+  --surface-2: #e2e8f0;
+  --surface-input: #f8fafc;
+  --ink-primary: #0f172a;
+  --ink-secondary: #475569;
+  --ink-tertiary: #64748b;
+  --ink-muted: #94a3b8;
+  --border-0: rgba(15, 23, 42, 0.08);
+  --border-1: rgba(15, 23, 42, 0.14);
+  --border-2: rgba(15, 23, 42, 0.22);
+  --border-focus: #047857;
+  --accent: #047857;
+  --accent-hover: #065f46;
+  --accent-muted: #d1fae5;
+  --accent-text: #065f46;
+  --gold: #b45309;
+  --gold-muted: #fef3c7;
+  --gold-text: #78350f;
+  --semantic-success: #047857;
+  --semantic-success-bg: #ecfdf5;
+  --semantic-warning: #b45309;
+  --semantic-warning-bg: #fffbeb;
+  --semantic-danger: #b91c1c;
+  --semantic-danger-bg: #fef2f2;
+  --chat-surface: #f8fafc;
+  --chat-incoming-bg: #ffffff;
+  --chat-incoming-border: rgba(15, 23, 42, 0.12);
+  --chat-outgoing-bg: #047857;
+  --chat-outgoing-text: #ffffff;
+  --chat-outgoing-muted: rgba(255, 255, 255, 0.88);
+  --chat-pattern: linear-gradient(180deg, rgba(4, 120, 87, 0.05), transparent 22%),
+    repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.035) 0, rgba(15, 23, 42, 0.035) 1px, transparent 1px, transparent 18px);
+  --background: var(--canvas);
+  --foreground: var(--ink-primary);
+  --surface: var(--surface-0);
+  --surface-strong: var(--surface-0);
+  --surface-muted: var(--surface-2);
+  --border-soft: var(--border-0);
+  --border-strong: var(--border-2);
+  --overlay: rgba(248, 250, 252, 0.86);
+  --sidebar-background: rgba(255, 255, 255, 0.9);
+  --panel-border: var(--border-1);
+  --panel-border-strong: var(--border-2);
+  --button-border: var(--border-2);
 
   --primary-50: #eff6ff;
   --primary-100: #dbeafe;
@@ -30,18 +64,52 @@
 }
 
 .dark {
-  --background: #0d1324;
-  --foreground: #e8edf8;
-  --surface: rgba(24, 31, 51, 0.88);
-  --surface-strong: #202843;
-  --surface-muted: #262f4b;
-  --border-soft: rgba(95, 108, 138, 0.38);
-  --border-strong: rgba(145, 166, 210, 0.3);
-  --overlay: rgba(13, 19, 36, 0.76);
-  --sidebar-background: rgba(19, 26, 44, 0.9);
-  --panel-border: #47526d;
-  --panel-border-strong: #5c6784;
-  --button-border: #5a647f;
+  --canvas: #0c1222;
+  --surface-0: #151d2e;
+  --surface-1: #1a2540;
+  --surface-2: #1f2d4a;
+  --surface-input: #1a2540;
+  --ink-primary: #f1f5f9;
+  --ink-secondary: #cbd5e1;
+  --ink-tertiary: #94a3b8;
+  --ink-muted: #64748b;
+  --border-0: rgba(241, 245, 249, 0.08);
+  --border-1: rgba(241, 245, 249, 0.13);
+  --border-2: rgba(241, 245, 249, 0.2);
+  --border-focus: #34d399;
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-muted: rgba(52, 211, 153, 0.16);
+  --accent-text: #6ee7b7;
+  --gold: #fbbf24;
+  --gold-muted: rgba(251, 191, 36, 0.16);
+  --gold-text: #fcd34d;
+  --semantic-success: #34d399;
+  --semantic-success-bg: rgba(52, 211, 153, 0.14);
+  --semantic-warning: #fbbf24;
+  --semantic-warning-bg: rgba(251, 191, 36, 0.14);
+  --semantic-danger: #f87171;
+  --semantic-danger-bg: rgba(248, 113, 113, 0.14);
+  --chat-surface: #0f172a;
+  --chat-incoming-bg: #172033;
+  --chat-incoming-border: rgba(241, 245, 249, 0.1);
+  --chat-outgoing-bg: #065f46;
+  --chat-outgoing-text: #ffffff;
+  --chat-outgoing-muted: rgba(255, 255, 255, 0.82);
+  --chat-pattern: linear-gradient(180deg, rgba(52, 211, 153, 0.06), transparent 22%),
+    repeating-linear-gradient(135deg, rgba(241, 245, 249, 0.035) 0, rgba(241, 245, 249, 0.035) 1px, transparent 1px, transparent 18px);
+  --background: var(--canvas);
+  --foreground: var(--ink-primary);
+  --surface: var(--surface-0);
+  --surface-strong: var(--surface-0);
+  --surface-muted: var(--surface-2);
+  --border-soft: var(--border-0);
+  --border-strong: var(--border-2);
+  --overlay: rgba(12, 18, 34, 0.86);
+  --sidebar-background: rgba(21, 29, 46, 0.9);
+  --panel-border: var(--border-1);
+  --panel-border-strong: var(--border-2);
+  --button-border: var(--border-2);
 
   --color-white: #202843;
   --color-slate-50: #262f4b;
@@ -166,6 +234,51 @@ body *::after {
   .dark .btn-secondary {
     border-color: var(--button-border);
     @apply bg-slate-800 text-slate-200 hover:bg-slate-700;
+  }
+
+  .page-title {
+    color: var(--ink-primary);
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .page-subtitle {
+    color: var(--ink-secondary);
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .section-label {
+    color: var(--ink-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .ctrl-input {
+    width: 100%;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-button);
+    background-color: var(--surface-input);
+    color: var(--ink-primary);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    outline: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+  }
+
+  .ctrl-input::placeholder {
+    color: var(--ink-muted);
+  }
+
+  .ctrl-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.14);
   }
 
   .badge-owner {
