@@ -12,8 +12,18 @@ import clsx from 'clsx'
 
 const EVENT_OPTIONS = [
   'contact.created', 'contact.updated', 'contact.deleted',
-  'deal.created',    'deal.updated',    'deal.moved', 'deal.deleted',
+  'deal.created',    'deal.updated',    'deal.stage_changed', 'deal.deleted',
 ]
+
+const EVENT_LABELS: Record<string, string> = {
+  'contact.created': 'Contacto creado',
+  'contact.updated': 'Contacto actualizado',
+  'contact.deleted': 'Contacto eliminado',
+  'deal.created':    'Lead creado',
+  'deal.updated':    'Lead actualizado',
+  'deal.stage_changed': 'Lead movido',
+  'deal.deleted':    'Lead eliminado',
+}
 
 export default function WebhooksPage() {
   const queryClient               = useQueryClient()
@@ -130,7 +140,7 @@ export default function WebhooksPage() {
                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
                     )}
                   >
-                    {event}
+                    {EVENT_LABELS[event] ?? event}
                   </button>
                 ))}
               </div>
@@ -206,7 +216,7 @@ export default function WebhooksPage() {
                         key={event}
                         className="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200"
                       >
-                        {event}
+                        {EVENT_LABELS[event] ?? event}
                       </span>
                     ))}
                   </div>

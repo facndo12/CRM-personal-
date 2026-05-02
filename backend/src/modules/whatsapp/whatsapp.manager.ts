@@ -29,6 +29,11 @@ type PersistMessageOptions = {
   recoveryCutoff?: Date | null
 }
 
+type ProfilePhotoCacheEntry = {
+  url: string | null
+  expiresAt: number
+}
+
 type SessionRecord = Awaited<ReturnType<WhatsAppManager['readSessionRecord']>>
 type HistoryContactMap = Map<string, string>
 
@@ -65,6 +70,11 @@ function normalizePhoneNumber(value?: string | null) {
 function normalizeLabel(value?: string | null) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
+}
+
+function normalizePersonName(value?: string | null) {
+  const normalized = normalizeLabel(value)
+  return normalized ? normalized.replace(/\s+/g, ' ').toLowerCase() : null
 }
 
 function hasReadableDisplayName(value?: string | null, fallback?: string | null) {
@@ -483,11 +493,13 @@ export class WhatsAppManager {
   private sockets = new Map<string, SocketEntry>()
   private booting = new Map<string, Promise<SocketEntry>>()
   private reconnectTimers = new Map<string, NodeJS.Timeout>()
+  private manualDisconnects = new Map<string, any>()
   private baileysModule: any | null = null
   private baileysVersion: number[] | null = null
   private messageSchemaCapabilitiesPromise: Promise<{ quoted: boolean }> | null = null
   private devMaintenancePromise: Promise<void> | null = null
   private lidAliases = new Map<string, Map<string, string>>()
+  private profilePhotoCache = new Map<string, Map<string, ProfilePhotoCacheEntry>>()
 
   isRuntimeCompatible() {
     if (config.NODE_ENV === 'development') {
@@ -578,8 +590,9 @@ export class WhatsAppManager {
     }
 
     if (entry?.sock) {
+      this.manualDisconnects.set(workspaceId, entry.sock)
       try {
-        await entry.sock.logout()
+        entry.sock.end?.(new Error('manual disconnect'))
       } catch {
         try {
           entry.sock.end?.(new Error('manual disconnect'))
@@ -590,7 +603,6 @@ export class WhatsAppManager {
     }
 
     this.sockets.delete(workspaceId)
-    await this.clearAuthState(workspaceId)
 
     await this.updateSession(workspaceId, {
       status: 'DISCONNECTED',
@@ -599,8 +611,6 @@ export class WhatsAppManager {
       qrCode: null,
       lastError: null,
       lastDisconnectedAt: new Date(),
-      phoneJid: null,
-      pushName: null,
     })
   }
 
@@ -700,6 +710,8 @@ export class WhatsAppManager {
 
   async listChats(workspaceId: string, search?: string) {
     await this.ensureDevMaintenanceAppliedOnce()
+    await this.linkChatsToContacts(workspaceId)
+    await this.mergeDuplicateContactChats(workspaceId)
     const normalizedSearch = search?.trim()
 
     const chats = await prisma.whatsAppChat.findMany({
@@ -737,12 +749,14 @@ export class WhatsAppManager {
       take: 150,
     })
 
-    return chats.map((chat) => ({
+    return Promise.all(chats.map(async (chat) => ({
       ...chat,
+      phoneNumber: chat.phoneNumber ?? extractPhoneNumberFromJid(chat.jid),
+      profileImageUrl: await this.getChatProfileImageUrl(workspaceId, chat.jid),
       contactName: chat.contact
         ? `${chat.contact.firstName}${chat.contact.lastName ? ` ${chat.contact.lastName}` : ''}`
         : null,
-    }))
+    })))
   }
 
   async listMessages(workspaceId: string, jid: string, limit = 60) {
@@ -780,6 +794,8 @@ export class WhatsAppManager {
     return {
       chat: {
         ...chat,
+        phoneNumber: chat.phoneNumber ?? extractPhoneNumberFromJid(chat.jid),
+        profileImageUrl: await this.getChatProfileImageUrl(workspaceId, chat.jid),
         contactName: chat.contact
           ? `${chat.contact.firstName}${chat.contact.lastName ? ` ${chat.contact.lastName}` : ''}`
           : null,
@@ -788,6 +804,26 @@ export class WhatsAppManager {
       totalMessages,
       historyAnchorAvailable: totalMessages > 0,
     }
+  }
+
+  async deleteChat(workspaceId: string, jid: string) {
+    await this.ensureDevMaintenanceAppliedOnce()
+    const canonicalJid = await this.resolveCanonicalJid(workspaceId, jid)
+    const chat = await prisma.whatsAppChat.findUnique({
+      where: { workspaceId_jid: { workspaceId, jid: canonicalJid } },
+      select: { id: true, jid: true },
+    })
+
+    if (!chat) {
+      throw new AppError(404, 'Chat no encontrado.', 'NOT_FOUND')
+    }
+
+    await prisma.whatsAppChat.delete({
+      where: { id: chat.id },
+    })
+
+    this.getWorkspaceProfilePhotoCache(workspaceId).delete(chat.jid)
+    this.getWorkspaceLidAliases(workspaceId).delete(chat.jid)
   }
 
   async requestHistorySync(workspaceId: string, jid: string, count = 40) {
@@ -1036,10 +1072,29 @@ export class WhatsAppManager {
     if (update?.connection === 'close') {
       const disconnectCode = this.extractDisconnectCode(update?.lastDisconnect?.error)
       const loggedOut = disconnectCode === 401
+      const manualDisconnectSock = this.manualDisconnects.get(workspaceId)
+      const manuallyDisconnected = manualDisconnectSock === entry.sock
+      if (manuallyDisconnected) {
+        this.manualDisconnects.delete(workspaceId)
+      }
 
       if (this.sockets.get(workspaceId)?.sock === entry.sock) {
         this.sockets.delete(workspaceId)
       }
+
+      if (manuallyDisconnected) {
+        await this.updateSession(workspaceId, {
+          status: 'DISCONNECTED',
+          lastDisconnectedAt: new Date(),
+          lastDisconnectCode: disconnectCode,
+          pairingCode: null,
+          pairingCodeIssuedAt: null,
+          qrCode: null,
+          lastError: null,
+        })
+        return
+      }
+
       if (loggedOut) {
         await this.clearAuthState(workspaceId)
       }
@@ -1176,6 +1231,41 @@ export class WhatsAppManager {
     return aliases
   }
 
+  private getWorkspaceProfilePhotoCache(workspaceId: string) {
+    let cache = this.profilePhotoCache.get(workspaceId)
+    if (!cache) {
+      cache = new Map()
+      this.profilePhotoCache.set(workspaceId, cache)
+    }
+    return cache
+  }
+
+  async getChatProfileImageUrl(workspaceId: string, jid?: string | null) {
+    const normalizedJid = normalizeLabel(jid)
+    if (!normalizedJid || normalizedJid.endsWith('@g.us')) return null
+
+    const cache = this.getWorkspaceProfilePhotoCache(workspaceId)
+    const cached = cache.get(normalizedJid)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.url
+    }
+
+    const entry = this.sockets.get(workspaceId)
+    if (!entry?.sock?.profilePictureUrl) {
+      cache.set(normalizedJid, { url: null, expiresAt: Date.now() + 5 * 60 * 1000 })
+      return null
+    }
+
+    try {
+      const url = await entry.sock.profilePictureUrl(normalizedJid, 'image')
+      cache.set(normalizedJid, { url: url ?? null, expiresAt: Date.now() + 30 * 60 * 1000 })
+      return url ?? null
+    } catch {
+      cache.set(normalizedJid, { url: null, expiresAt: Date.now() + 5 * 60 * 1000 })
+      return null
+    }
+  }
+
   private async rememberPhoneNumberShare(workspaceId: string, lid?: string | null, jid?: string | null) {
     const lidJid = ensureJidServer(lid, '@lid')
     const phoneJid = ensureJidServer(jid, '@s.whatsapp.net')
@@ -1292,14 +1382,109 @@ export class WhatsAppManager {
     })
   }
 
+  private chooseCanonicalContactChat<T extends {
+    id: string
+    jid: string
+    lastMessageAt?: Date | null
+    updatedAt?: Date | null
+  }>(chats: T[]) {
+    return [...chats].sort((a, b) => {
+      const aIsPhone = isPhoneUserJid(a.jid) ? 1 : 0
+      const bIsPhone = isPhoneUserJid(b.jid) ? 1 : 0
+      if (aIsPhone !== bIsPhone) return bIsPhone - aIsPhone
+
+      const aTime = (a.lastMessageAt ?? a.updatedAt ?? new Date(0)).getTime()
+      const bTime = (b.lastMessageAt ?? b.updatedAt ?? new Date(0)).getTime()
+      return bTime - aTime
+    })[0]
+  }
+
+  private async mergeDuplicateContactChats(workspaceId: string, contactId?: string | null) {
+    const chats = await prisma.whatsAppChat.findMany({
+      where: {
+        workspaceId,
+        isGroup: false,
+        contactId: contactId ? contactId : { not: null },
+      },
+      select: {
+        id: true,
+        jid: true,
+        contactId: true,
+        lastMessageAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+    })
+
+    const byContact = new Map<string, typeof chats>()
+    for (const chat of chats) {
+      if (!chat.contactId) continue
+      byContact.set(chat.contactId, [...(byContact.get(chat.contactId) ?? []), chat])
+    }
+
+    for (const group of byContact.values()) {
+      if (group.length < 2) continue
+
+      const target = this.chooseCanonicalContactChat(group)
+      if (!target) continue
+
+      for (const source of group) {
+        if (source.id === target.id) continue
+        await this.mergeChatAlias(workspaceId, source.jid, target.jid)
+      }
+    }
+  }
+
+  private async linkChatsToContacts(workspaceId: string) {
+    const chats = await prisma.whatsAppChat.findMany({
+      where: {
+        workspaceId,
+        isGroup: false,
+        contactId: null,
+      },
+      select: {
+        id: true,
+        displayName: true,
+        phoneNumber: true,
+      },
+      take: 150,
+    })
+
+    for (const chat of chats) {
+      const phoneNumber = normalizePhoneNumber(chat.phoneNumber)
+      const contact =
+        (phoneNumber ? await this.findContactByPhone(workspaceId, phoneNumber) : null) ??
+        await this.findUniqueContactByDisplayName(workspaceId, chat.displayName)
+      if (!contact) continue
+
+      await prisma.whatsAppChat.update({
+        where: { id: chat.id },
+        data: { contactId: contact.id },
+      })
+
+      await this.mergeDuplicateContactChats(workspaceId, contact.id)
+    }
+  }
+
   private async persistChat(workspaceId: string, chat: any, historyContacts?: HistoryContactMap) {
     const rawJid = chat?.id ?? chat?.jid
     if (!supportsChat(rawJid)) return null
     const jid = await this.resolveCanonicalJid(workspaceId, rawJid)
 
     const session = await this.ensureSessionRecord(workspaceId)
-    const phoneNumber = extractPhoneNumberFromJid(jid)
-    const linkedContact = phoneNumber ? await this.findContactByPhone(workspaceId, phoneNumber) : null
+    const phoneNumber =
+      extractPhoneNumberFromJid(jid) ??
+      normalizePhoneNumber(chat?.phoneNumber ?? chat?.phone)
+    const linkedContact =
+      (phoneNumber ? await this.findContactByPhone(workspaceId, phoneNumber) : null) ??
+      await this.findUniqueContactByDisplayName(
+        workspaceId,
+        selectChatDisplayName(
+          historyContacts?.get(jid) ?? historyContacts?.get(rawJid) ?? null,
+          chat?.name,
+          chat?.notify
+        )
+      )
     const contactName = linkedContact
       ? `${linkedContact.firstName}${linkedContact.lastName ? ` ${linkedContact.lastName}` : ''}`
       : null
@@ -1365,6 +1550,10 @@ export class WhatsAppManager {
 
     if (chat?.lastMessage?.key?.id) {
       await this.persistMessage(workspaceId, chat.lastMessage)
+    }
+
+    if (persistedChat.contactId) {
+      await this.mergeDuplicateContactChats(workspaceId, persistedChat.contactId)
     }
 
     return persistedChat
@@ -2162,6 +2351,8 @@ export class WhatsAppManager {
         data: { contactId: existing.id },
       })
 
+      await this.mergeDuplicateContactChats(workspaceId, existing.id)
+
       return existing
     }
 
@@ -2191,6 +2382,8 @@ export class WhatsAppManager {
       where: { id: input.chatId },
       data: { contactId: created.id },
     })
+
+    await this.mergeDuplicateContactChats(workspaceId, created.id)
 
     return created
   }
@@ -2370,6 +2563,29 @@ export class WhatsAppManager {
       const normalized = normalizePhoneNumber(contact.phone)
       return normalized ? normalized.endsWith(phoneNumber) || phoneNumber.endsWith(normalized) : false
     }) ?? null
+  }
+
+  private async findUniqueContactByDisplayName(workspaceId: string, displayName?: string | null) {
+    const normalizedDisplayName = normalizePersonName(displayName)
+    if (!normalizedDisplayName) return null
+    if (!/[^\d\s()+-]/.test(normalizedDisplayName)) return null
+
+    const contacts = await db.contact.findMany({
+      where: {
+        workspaceId,
+        isArchived: false,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+      },
+      take: 5000,
+    })
+
+    const matches = contacts.filter((contact) => normalizePersonName(buildContactName(contact)) === normalizedDisplayName)
+    return matches.length === 1 ? matches[0] : null
   }
 
   private extractDisconnectCode(error: any) {

@@ -90,6 +90,13 @@ export async function whatsappRoutes(app: FastifyInstance) {
     return reply.send(await whatsAppManager.listMessages(ctx.workspaceId, jid, query.limit))
   })
 
+  app.delete<{ Params: { jid: string } }>('/chats/:jid', { preHandler: requireRole('owner', 'admin') }, async (req, reply) => {
+    const ctx = req.user as { workspaceId: string }
+    const jid = decodeURIComponent(req.params.jid)
+    await whatsAppManager.deleteChat(ctx.workspaceId, jid)
+    return reply.status(204).send()
+  })
+
   app.get<{ Params: { messageId: string } }>('/messages/:messageId/media', async (req, reply) => {
     const ctx = req.user as { workspaceId: string }
     const media = await whatsAppManager.getMessageMedia(ctx.workspaceId, req.params.messageId)

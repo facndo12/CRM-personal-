@@ -102,6 +102,7 @@ export interface KanbanStage {
 
 export interface KanbanCard {
   id: string
+  leadNumber: string
   title: string
   value?: number
   currency: string
@@ -114,6 +115,18 @@ export interface KanbanCard {
   expectedCloseDate?: string
   daysInStage: number
   isRotten: boolean
+  chat?: {
+    id: string
+    jid: string
+    displayName?: string | null
+    phoneNumber?: string | null
+    profileImageUrl?: string | null
+    unreadCount: number
+    lastMessageAt?: string | null
+    lastMessagePreview?: string | null
+    lastMessageFromMe?: boolean | null
+    contactName?: string | null
+  }
   createdAt: string
   updatedAt: string
 }
@@ -249,6 +262,7 @@ export interface WhatsAppChat {
   jid: string
   displayName?: string | null
   phoneNumber?: string | null
+  profileImageUrl?: string | null
   isGroup: boolean
   unreadCount: number
   archived: boolean

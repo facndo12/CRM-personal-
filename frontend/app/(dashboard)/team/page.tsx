@@ -259,15 +259,15 @@ export default function TeamPage() {
           </div>
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
             <span className="badge-admin mb-2 inline-block">Admin</span>
-            <p className="leading-relaxed">Gestiona contactos, deals, webhooks y pipelines. Puede invitar nuevos Members y Viewers a la plataforma.</p>
+            <p className="leading-relaxed">Gestiona contactos, leads, webhooks y pipelines. Puede invitar nuevos Members y Viewers a la plataforma.</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
             <span className="badge-member mb-2 inline-block">Member</span>
-            <p className="leading-relaxed">Operario diario. Crea, edita y mueve Deals y Contactos diariamente. No maneja configuraciones maestras.</p>
+            <p className="leading-relaxed">Operario diario. Crea, edita y mueve Leads y Contactos diariamente. No maneja configuraciones maestras.</p>
           </div>
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
             <span className="badge-viewer mb-2 inline-block">Viewer</span>
-            <p className="leading-relaxed">Solo lectura. Puede revisar auditorías, contactos y deals pero no tiene capacidad de modificar ni interactuar.</p>
+            <p className="leading-relaxed">Solo lectura. Puede revisar auditorías, contactos y leads pero no tiene capacidad de modificar ni interactuar.</p>
           </div>
         </div>
       </div>

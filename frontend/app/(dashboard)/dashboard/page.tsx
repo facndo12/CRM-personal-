@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { dashboardApi } from '@/lib/api'
+import { ThemeToggle } from '@/components/theme-toggle'
 import type { DashboardData } from '@/types'
 import Link from 'next/link'
 import {
@@ -69,6 +70,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto animate-fade-in">
+      <ThemeToggle />
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard General</h1>
         <p className="text-slate-500 font-medium mt-1">Resumen de la actividad en tu CRM y rendimiento de ventas</p>
@@ -84,7 +86,7 @@ export default function DashboardPage() {
           color="bg-blue-50 text-blue-600 border-blue-100"
         />
         <MetricCard
-          title="Negocios abiertos"
+          title="Leads abiertos"
           value={data.deals.total}
           subtitle="En pipelines activos"
           icon={KanbanSquare}
@@ -107,15 +109,15 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Deals por etapa */}
+        {/* Leads por etapa */}
         <div className="lg:col-span-2 interactive-card p-6">
           <h3 className="text-slate-900 font-bold mb-5 flex items-center gap-2 text-lg">
-            <KanbanSquare size={20} className="text-primary-500" /> Rendimiento de Embudos (Deals por etapa)
+            <KanbanSquare size={20} className="text-primary-500" /> Rendimiento de Embudos (Leads por etapa)
           </h3>
           {data.deals.byStage.length === 0 ? (
             <div className="text-center py-10 bg-slate-50 border border-slate-200 border-dashed rounded-xl">
                <Layers size={36} className="text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
-               <p className="text-slate-500 font-medium">No hay deals todavía</p>
+               <p className="text-slate-500 font-medium">No hay leads todavía</p>
             </div>
           ) : (
             <div className="space-y-4">

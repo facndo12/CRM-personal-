@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Providers } from './providers'
 import { ThemeScript } from './theme-script'
-import { ThemeToggle } from '@/components/theme-toggle'
 
 export const metadata: Metadata = {
   title: 'CRM',
@@ -21,7 +20,6 @@ export default function RootLayout({
       </head>
       <body>
         <Providers>
-          <ThemeToggle />
           {children}
         </Providers>
       </body>

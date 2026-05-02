@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { resolveApiAssetUrl, whatsappApi } from '@/lib/api'
+import { api, resolveApiAssetUrl, whatsappApi } from '@/lib/api'
 import { auth } from '@/lib/auth'
 import type {
   WhatsAppChat,
@@ -13,9 +13,9 @@ import type {
 } from '@/types'
 import { useToast } from '@/components/ui/toast'
 import {
-  AlertTriangle, ArrowUpRight, ChevronDown, ChevronUp, Clock3, Link2,
-  Loader2, MessageSquareText, MessagesSquare, Phone, RefreshCcw,
-  Search, Send, Settings2, Smartphone, Unplug, Users, Wifi, WifiOff,
+  AlertTriangle, ArrowUpRight, ChevronDown, ChevronUp,
+  Loader2, MessageSquareText, RefreshCcw,
+  Search, Send, Settings2, Smartphone, Trash2, Unplug, Wifi, WifiOff,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -62,15 +62,22 @@ function chatTitle(chat?: WhatsAppChat | null) {
   return chat.phoneNumber ?? chat.jid
 }
 
-function chatSecondary(chat?: WhatsAppChat | null) {
-  if (!chat) return 'Sin contexto'
-  if (chat.contactName) return chat.phoneNumber ?? chat.displayName ?? chat.jid
-  if (chat.displayName && chat.displayName !== chat.jid) return chat.phoneNumber ?? chat.jid
+function chatInitial(chat?: WhatsAppChat | null) {
+  return chatTitle(chat).slice(0, 1).toUpperCase()
+}
+
+function chatPrimaryName(chat?: WhatsAppChat | null) {
+  if (!chat) return 'Sin chat'
+  if (chat.contactName) return chat.contactName
+  if (chat.displayName && chat.displayName !== chat.jid) return chat.displayName
   return chat.phoneNumber ?? chat.jid
 }
 
-function chatInitial(chat?: WhatsAppChat | null) {
-  return chatTitle(chat).slice(0, 1).toUpperCase()
+function chatPhoneLine(chat?: WhatsAppChat | null) {
+  if (!chat) return null
+  if (chat.phoneNumber) return chat.phoneNumber
+  const match = chat.jid.match(/^(\d+)(?=@s\.whatsapp\.net$)/)
+  return match?.[1] ?? null
 }
 
 function messageSenderName(message: WhatsAppMessage, chat?: WhatsAppChat | null) {
@@ -196,9 +203,44 @@ function Notice({ title, body }: { title: string; body: string }) {
   )
 }
 
+function useProtectedMediaUrl(path?: string | null) {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const assetUrl = resolveApiAssetUrl(path)
+    if (!assetUrl) {
+      setUrl(null)
+      return
+    }
+
+    let active = true
+    let objectUrl: string | null = null
+
+    void api.get(assetUrl, { responseType: 'blob' }).then((response) => {
+      if (!active) return
+      objectUrl = URL.createObjectURL(response.data)
+      setUrl(objectUrl)
+    }).catch(() => {
+      if (active) {
+        setUrl(null)
+      }
+    })
+
+    return () => {
+      active = false
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [path])
+
+  return url
+}
+
 function MessageBody({ message }: { message: WhatsAppMessage }) {
-  const mediaUrl = resolveApiAssetUrl(message.mediaUrl)
+  const mediaUrl = useProtectedMediaUrl(message.mediaUrl)
   const quoted = <QuotedMessagePreview message={message} outgoing={message.fromMe} />
+  const expectsMedia = ['image', 'audio', 'video', 'document'].includes(message.messageType)
 
   if (message.messageType === 'image' && mediaUrl) {
     return (
@@ -252,13 +294,27 @@ function MessageBody({ message }: { message: WhatsAppMessage }) {
     return (
       <div className="space-y-3">
         {quoted}
-        <a href={mediaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: 'rgba(15,23,42,0.08)' }}>
+        <a href={mediaUrl} target="_blank" rel="noreferrer" download={message.mediaFileName ?? undefined} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: 'rgba(15,23,42,0.08)' }}>
           <ArrowUpRight size={14} />
           {message.mediaFileName ?? message.text ?? 'Documento'}
         </a>
         {message.text && message.mediaFileName !== message.text && (
           <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
         )}
+      </div>
+    )
+  }
+
+  if (expectsMedia && message.mediaUrl) {
+    return (
+      <div className="space-y-3">
+        {quoted}
+        <p className="text-sm leading-6" style={{ opacity: 0.78 }}>
+          Cargando adjunto...
+        </p>
+        {message.text && !['[Imagen]', '[Video]', '[Audio]'].includes(message.text) ? (
+          <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
+        ) : null}
       </div>
     )
   }
@@ -276,6 +332,8 @@ export default function ChatsPage() {
   const { toast } = useToast()
   const storedAuth = auth.get()
   const canManage = storedAuth?.role !== 'viewer'
+  const canDeleteChat = storedAuth?.role === 'owner' || storedAuth?.role === 'admin'
+  const [requestedJid, setRequestedJid] = useState<string | null>(null)
   const [chatSearch, setChatSearch] = useState('')
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all')
   const [selectedJid, setSelectedJid] = useState<string | null>(null)
@@ -284,6 +342,10 @@ export default function ChatsPage() {
   const [localEchoesByJid, setLocalEchoesByJid] = useState<Record<string, WhatsAppMessage[]>>({})
   const deferredSearch = useDeferredValue(chatSearch)
   const messagesViewportRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setRequestedJid(new URLSearchParams(window.location.search).get('jid'))
+  }, [])
 
   const sessionQuery = useQuery<WhatsAppSessionSnapshot>({
     queryKey: ['whatsapp-session'],
@@ -315,10 +377,14 @@ export default function ChatsPage() {
 
   useEffect(() => {
     if (filteredChats.length === 0) return void setSelectedJid(null)
+    if (requestedJid && filteredChats.some((chat) => chat.jid === requestedJid)) {
+      setSelectedJid(requestedJid)
+      return
+    }
     if (!selectedJid || !filteredChats.some((chat) => chat.jid === selectedJid)) {
       setSelectedJid(filteredChats[0].jid)
     }
-  }, [filteredChats, selectedJid])
+  }, [filteredChats, requestedJid, selectedJid])
 
   useEffect(() => {
     if (session?.qrCode || session?.lastError) {
@@ -369,6 +435,28 @@ export default function ChatsPage() {
       toast({ type: 'success', title: 'Sesion desconectada' })
     },
     onError: (error) => toast({ type: 'error', title: 'No se pudo desconectar', description: toErrorMessage(error) }),
+  })
+
+  const deleteChatMutation = useMutation({
+    mutationFn: (jid: string) => whatsappApi.deleteChat(jid),
+    onSuccess: (_data, jid) => {
+      setMessageText('')
+      setRequestedJid(null)
+      setSelectedJid((current) => current === jid ? null : current)
+      setLocalEchoesByJid((current) => {
+        if (!current[jid]) return current
+        const next = { ...current }
+        delete next[jid]
+        return next
+      })
+      queryClient.removeQueries({ queryKey: ['whatsapp-messages', jid] })
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-chats'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      toast({ type: 'success', title: 'Chat eliminado del CRM' })
+    },
+    onError: (error) => {
+      toast({ type: 'error', title: 'No se pudo eliminar el chat', description: toErrorMessage(error) })
+    },
   })
 
   const sendMutation = useMutation({
@@ -458,19 +546,37 @@ export default function ChatsPage() {
   const localEchoes = useMemo(() => selectedJid ? (localEchoesByJid[selectedJid] ?? []) : [], [localEchoesByJid, selectedJid])
   const liveItems = useMemo(() => mergeLiveMessages(messagesQuery.data?.items ?? [], localEchoes), [localEchoes, messagesQuery.data?.items])
   const grouped = useMemo(() => groupMessages(liveItems), [liveItems])
-  const stats = useMemo(() => ({
-    linked: chats.filter((chat) => Boolean(chat.contactId)).length,
-    unread: chats.reduce((sum, chat) => sum + chat.unreadCount, 0),
-    withPreview: chats.filter((chat) => Boolean(chat.lastMessagePreview)).length,
-  }), [chats])
-
   const statusStyle = STATUS_STYLES[session?.status ?? 'DISCONNECTED']
   const qrImageUrl = session?.qrCode ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(session.qrCode)}` : null
   const showQrTools = session?.status !== 'CONNECTED' || Boolean(session?.qrCode)
+  const sessionStatus = session?.status ?? 'DISCONNECTED'
+  const sessionRuntimeReady = Boolean(session?.runtimeCompatible && session?.packageInstalled)
+  const sessionIsBusy = connectMutation.isPending || disconnectMutation.isPending
+  const canGenerateQr = Boolean(canManage && sessionRuntimeReady && !connectMutation.isPending)
+  const canResumeSession = Boolean(
+    canManage &&
+    sessionRuntimeReady &&
+    session?.authAvailable &&
+    !session?.hasActiveSocket &&
+    sessionStatus !== 'CONNECTED' &&
+    !sessionIsBusy
+  )
+  const canDisconnectSession = Boolean(
+    canManage &&
+    session &&
+    !sessionIsBusy &&
+    (session.hasActiveSocket || ['CONNECTED', 'CONNECTING', 'PAIRING', 'ERROR'].includes(sessionStatus))
+  )
 
-  const handleQrSubmit = () => canManage && connectMutation.mutate()
-  const handleResume = () => canManage && connectMutation.mutate()
+  const handleQrSubmit = () => canGenerateQr && connectMutation.mutate()
+  const handleResume = () => canResumeSession && connectMutation.mutate()
+  const handleDisconnect = () => canDisconnectSession && disconnectMutation.mutate()
   const handleSendMessage = () => selectedJid && messageText.trim() && sendMutation.mutate()
+  const handleDeleteChat = () => {
+    if (!selectedChat || !canDeleteChat) return
+    if (!window.confirm(`Vas a eliminar el chat local de "${chatPrimaryName(selectedChat)}". Los mensajes persistidos en este CRM se borran.`)) return
+    deleteChatMutation.mutate(selectedChat.jid)
+  }
   const handleReLogin = () => { auth.clear(); window.location.href = '/login' }
 
   useEffect(() => {
@@ -486,71 +592,29 @@ export default function ChatsPage() {
   }, [selectedJid, liveItems.length])
 
   return (
-    <div className="animate-fade-in max-w-[1680px] mx-auto px-4 pb-20 pt-8 md:px-8 md:pb-8 md:pt-10">
-      <div className="mb-6 flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
+    <div className="animate-fade-in mx-auto max-w-[1680px] px-4 pb-20 pt-6 md:px-8 md:pb-8 md:pt-8">
+      <div className="mb-4 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div>
           <h1 className="page-title">Chats</h1>
-          <p className="page-subtitle">Inbox operativo de WhatsApp: conexion, contexto CRM y conversacion en una sola vista.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl px-2 py-2" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-0)' }}>
           <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
             {session?.status === 'CONNECTED' ? <Wifi size={13} /> : <WifiOff size={13} />}
             {statusStyle.label}
           </span>
-          <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}>
-            <MessagesSquare size={13} />
-            {session?.chatCount ?? 0} chats
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}>
-            <Users size={13} />
-            {stats.linked} vinculados
-          </span>
           <button onClick={() => setSettingsOpen((current) => !current)} className="btn-secondary !h-9 !px-3 !py-0">
             <Settings2 size={14} />
-            Configuracion
+            Sesion
             {settingsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
       </div>
 
       {settingsOpen && (
-        <div className="mb-5 interactive-card p-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <p className="section-label">Configuracion</p>
-              <h2 className="mt-1 text-lg font-bold" style={{ color: 'var(--ink-primary)' }}>Resumen operativo e infraestructura</h2>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'var(--ink-secondary)' }}>
-                Esta capa queda separada del inbox para que la pantalla principal priorice conversaciones reales. No recuperamos historiales viejos desde WhatsApp, pero lo que ya persiste en la base sigue visible y vinculado al mismo contacto y lead.
-              </p>
-            </div>
-            <div className="rounded-2xl px-3 py-2 text-right" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[11px] uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Auth</p>
-              <p className="text-sm font-semibold" style={{ color: 'var(--ink-primary)' }}>{session?.authAvailable ? 'Disponible' : 'Vacia'}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-2xl p-3" style={{ background: 'rgba(5,150,105,0.08)', border: '1px solid rgba(5,150,105,0.16)' }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Sesion</p>
-                  <p className="mt-2 font-semibold" style={{ color: 'var(--ink-primary)' }}>{statusStyle.label}</p>
-                </div>
-                <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Identidad</p>
-                  <p className="mt-2 font-semibold leading-5" style={{ color: 'var(--ink-primary)' }}>{session?.pushName ?? session?.phoneJid ?? 'Sin vincular'}</p>
-                </div>
-                <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Conversaciones visibles</p>
-                  <p className="mt-2 font-semibold" style={{ color: 'var(--ink-primary)' }}>{session?.chatCount ?? 0}</p>
-                </div>
-                <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Sin leer</p>
-                  <p className="mt-2 font-semibold" style={{ color: 'var(--ink-primary)' }}>{stats.unread}</p>
-                </div>
-              </div>
-
+        <div className="mb-4 interactive-card overflow-hidden p-4">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+            <div className="space-y-3">
               {!session?.runtimeCompatible && <Notice title="Runtime incompatible" body="Este backend esta corriendo en un contexto serverless. Baileys necesita un proceso Node persistente para que la conexion no se rompa." />}
               {session?.runtimeCompatible && !session?.packageInstalled && <Notice title="Dependencia faltante" body="El codigo ya esta preparado, pero Baileys no esta instalado en backend. Sin eso no se puede abrir la sesion real." />}
               {sessionQuery.isError && (
@@ -582,16 +646,12 @@ export default function ChatsPage() {
 
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 xl:w-[360px]">
               {showQrTools && (
-                <div className="rounded-2xl p-4" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-0)' }}>
-                  <p className="section-label">Operacion de sesion</p>
-                  <div className="mt-4 space-y-4">
-                    <p className="text-xs leading-5" style={{ color: 'var(--ink-tertiary)' }}>
-                      La vinculacion se hace solo con QR desde WhatsApp &gt; Dispositivos vinculados. No hay alta manual ni codigo numerico.
-                    </p>
+                <div className="rounded-2xl p-3" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-0)' }}>
+                  <div className="space-y-3">
                     <div className="grid grid-cols-1 gap-2">
-                      <button onClick={handleQrSubmit} disabled={!canManage || connectMutation.isPending || !session?.runtimeCompatible || !session?.packageInstalled} className="btn-primary">
+                      <button onClick={handleQrSubmit} disabled={!canGenerateQr} className="btn-primary min-h-11">
                         {connectMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}Generar QR
                       </button>
                     </div>
@@ -599,39 +659,39 @@ export default function ChatsPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleResume} disabled={!canManage || connectMutation.isPending || !session?.authAvailable || !session?.runtimeCompatible || !session?.packageInstalled} className="btn-secondary"><RefreshCcw size={14} />Reanudar</button>
-                <button onClick={() => disconnectMutation.mutate()} disabled={!canManage || disconnectMutation.isPending || !session?.authAvailable} className="btn-secondary">{disconnectMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Unplug size={14} />}Desconectar</button>
-              </div>
-
-              <div className="rounded-2xl p-4" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-0)' }}>
-                <p className="section-label">Estado persistido</p>
-                <div className="mt-4 space-y-3 text-sm">
-                  <div className="flex items-center justify-between"><span style={{ color: 'var(--ink-tertiary)' }}>Auth disponible</span><span className="font-semibold" style={{ color: 'var(--ink-primary)' }}>{session?.authAvailable ? 'Si' : 'No'}</span></div>
-                  <div className="flex items-center justify-between"><span style={{ color: 'var(--ink-tertiary)' }}>Socket en memoria</span><span className="font-semibold" style={{ color: 'var(--ink-primary)' }}>{session?.hasActiveSocket ? 'Activo' : 'No'}</span></div>
-                  <div className="flex items-center justify-between"><span style={{ color: 'var(--ink-tertiary)' }}>Ultima conexion</span><span className="font-semibold text-right" style={{ color: 'var(--ink-primary)' }}>{formatDateTime(session?.lastConnectedAt)}</span></div>
-                  <div className="flex items-center justify-between"><span style={{ color: 'var(--ink-tertiary)' }}>Ultima desconexion</span><span className="font-semibold text-right" style={{ color: 'var(--ink-primary)' }}>{formatDateTime(session?.lastDisconnectedAt)}</span></div>
-                  <div className="flex items-center justify-between"><span style={{ color: 'var(--ink-tertiary)' }}>Con preview</span><span className="font-semibold text-right" style={{ color: 'var(--ink-primary)' }}>{stats.withPreview}</span></div>
-                </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-2">
+                <button
+                  onClick={handleResume}
+                  disabled={!canResumeSession}
+                  className="btn-secondary min-h-11 !px-3 !py-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {connectMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+                  Reanudar
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  disabled={!canDisconnectSession}
+                  className="btn-secondary min-h-11 !px-3 !py-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {disconnectMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Unplug size={15} />}
+                  Desconectar
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start xl:grid-cols-[430px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start xl:grid-cols-[390px_minmax(0,1fr)]">
 
-        <section className="interactive-card flex min-h-[620px] flex-col overflow-hidden lg:h-[calc(100vh-13.5rem)] lg:min-h-0">
-          <div className="shrink-0 border-b px-5 py-4" style={{ borderColor: 'var(--border-0)' }}>
+        <section className="interactive-card flex min-h-[620px] flex-col overflow-hidden ring-1 ring-emerald-500/10 lg:h-[calc(100vh-10.5rem)] lg:min-h-0">
+          <div className="shrink-0 border-b px-5 py-4" style={{ borderColor: 'var(--border-0)', background: 'var(--surface-0)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="section-label">Inbox</p>
                 <h2 className="mt-1 text-lg font-bold" style={{ color: 'var(--ink-primary)' }}>Conversaciones</h2>
               </div>
-              <div className="rounded-2xl px-3 py-2 text-right" style={{ background: 'var(--surface-2)' }}>
-                <p className="text-[11px] uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Mostrando</p>
-                <p className="text-sm font-semibold" style={{ color: 'var(--ink-primary)' }}>{filteredChats.length} / {session?.chatCount ?? chats.length}</p>
-              </div>
+              <p className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}>{filteredChats.length}</p>
             </div>
 
             <div className="relative mt-4">
@@ -639,19 +699,20 @@ export default function ChatsPage() {
               <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} placeholder="Buscar chat, telefono o contacto" className="ctrl-input !pl-10" />
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl p-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}>
               {(['all', 'linked', 'unread'] as ChatFilter[]).map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setChatFilter(filter)}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+                  className="rounded-xl px-2 py-2 text-xs font-semibold transition-colors"
                   style={{
-                    background: chatFilter === filter ? 'var(--accent-muted)' : 'var(--surface-2)',
+                    background: chatFilter === filter ? 'var(--surface-0)' : 'transparent',
                     color: chatFilter === filter ? 'var(--accent-text)' : 'var(--ink-secondary)',
-                    border: chatFilter === filter ? '1px solid rgba(5,150,105,0.16)' : '1px solid var(--border-0)',
+                    border: chatFilter === filter ? '1px solid rgba(5,150,105,0.16)' : '1px solid transparent',
+                    boxShadow: chatFilter === filter ? '0 8px 18px rgba(15,23,42,0.06)' : 'none',
                   }}
                 >
-                  {filter === 'all' ? 'Todo' : filter === 'linked' ? `CRM ${stats.linked}` : `Sin leer ${stats.unread}`}
+                  {filter === 'all' ? 'Todo' : filter === 'linked' ? 'CRM' : 'Sin leer'}
                 </button>
               ))}
             </div>
@@ -665,24 +726,44 @@ export default function ChatsPage() {
                 {filteredChats.map((chat) => {
                   const active = chat.jid === selectedJid
                   return (
-                    <button key={chat.id} onClick={() => setSelectedJid(chat.jid)} className="w-full px-4 py-4 text-left transition-colors" style={{ background: active ? 'rgba(5,150,105,0.08)' : 'transparent', borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent' }}>
+                    <button
+                      key={chat.id}
+                      onClick={() => setSelectedJid(chat.jid)}
+                      className="group w-full px-4 py-4 text-left transition-colors hover:bg-[rgba(5,150,105,0.04)]"
+                      style={{
+                        background: active ? 'rgba(5,150,105,0.08)' : 'transparent',
+                        borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
+                      }}
+                    >
                       <div className="flex items-start gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold" style={{ background: active ? 'rgba(5,150,105,0.16)' : 'var(--surface-2)', color: active ? 'var(--accent)' : 'var(--ink-secondary)' }}>{chatInitial(chat)}</div>
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-bold" style={{ background: active ? 'rgba(5,150,105,0.16)' : 'var(--surface-2)', color: active ? 'var(--accent)' : 'var(--ink-secondary)', border: '1px solid var(--border-0)' }}>
+                          {chat.profileImageUrl ? (
+                            <img
+                              src={chat.profileImageUrl}
+                              alt={chatPrimaryName(chat)}
+                              className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            chatInitial(chat)
+                          )}
+                        </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold" style={{ color: 'var(--ink-primary)' }}>{chatTitle(chat)}</p>
-                              <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--ink-tertiary)' }}>{chatSecondary(chat)}</p>
+                              <p className="truncate text-sm font-semibold" style={{ color: 'var(--ink-primary)' }}>{chatPrimaryName(chat)}</p>
+                              {chatPhoneLine(chat) ? (
+                                <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--ink-tertiary)' }}>{chatPhoneLine(chat)}</p>
+                              ) : null}
                             </div>
                             <div className="shrink-0 text-right">
                               <p className="text-[11px]" style={{ color: 'var(--ink-tertiary)' }}>{formatChatTimestamp(chat.lastMessageAt)}</p>
                               {chat.unreadCount > 0 && <span className="mt-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--accent)', color: '#fff' }}>{chat.unreadCount}</span>}
                             </div>
                           </div>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5" style={{ color: 'var(--ink-secondary)' }}>{chat.lastMessagePreview ?? 'Sin mensaje legible todavia.'}</p>
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-                            {chat.contactName && <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold" style={{ background: 'var(--gold-muted)', color: 'var(--gold-text)' }}><Link2 size={10} />CRM</span>}
-                          </div>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5" style={{ color: active ? 'var(--ink-primary)' : 'var(--ink-secondary)' }}>
+                            {chat.lastMessageFromMe ? 'Tu: ' : ''}{chat.lastMessagePreview ?? 'Sin mensaje legible todavia.'}
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -699,19 +780,30 @@ export default function ChatsPage() {
           </div>
         </section>
 
-        <section className="interactive-card flex min-h-[620px] flex-col overflow-hidden lg:sticky lg:top-6 lg:h-[calc(100vh-13.5rem)] lg:min-h-0">
+        <section className="interactive-card flex min-h-[620px] flex-col overflow-hidden ring-1 ring-emerald-500/10 lg:sticky lg:top-6 lg:h-[calc(100vh-10.5rem)] lg:min-h-0">
           {selectedChat ? (
             <>
               <div className="shrink-0 border-b px-5 py-4" style={{ borderColor: 'var(--border-0)' }}>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex min-w-0 items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold" style={{ background: 'rgba(5,150,105,0.12)', color: 'var(--accent)' }}>{chatInitial(selectedChat)}</div>
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-lg font-bold" style={{ background: 'rgba(5,150,105,0.12)', color: 'var(--accent)' }}>
+                      {selectedChat.profileImageUrl ? (
+                        <img
+                          src={selectedChat.profileImageUrl}
+                          alt={chatPrimaryName(selectedChat)}
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        chatInitial(selectedChat)
+                      )}
+                    </div>
                     <div className="min-w-0">
-                      <p className="truncate text-xl font-bold" style={{ color: 'var(--ink-primary)' }}>{chatTitle(selectedChat)}</p>
+                      <p className="truncate text-xl font-bold" style={{ color: 'var(--ink-primary)' }}>{chatPrimaryName(selectedChat)}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm" style={{ color: 'var(--ink-secondary)' }}>
-                        <span className="truncate">{chatSecondary(selectedChat)}</span>
-                        {selectedChat.phoneNumber && <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}><Phone size={10} />{selectedChat.phoneNumber}</span>}
-                        {selectedChat.contactName && <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--gold-muted)', color: 'var(--gold-text)' }}><Link2 size={10} />{selectedChat.contactName}</span>}
+                        {chatPhoneLine(selectedChat) ? (
+                          <span className="truncate">{chatPhoneLine(selectedChat)}</span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -720,21 +812,28 @@ export default function ChatsPage() {
                     <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
                       {session?.status === 'CONNECTED' ? <Wifi size={12} /> : <WifiOff size={12} />}{statusStyle.label}
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-secondary)' }}>
-                      <MessageSquareText size={12} />{messagesQuery.data?.totalMessages ?? 0} mensajes
-                    </span>
                     {selectedChat.contactId && <Link href={`/contacts/${selectedChat.contactId}`} className="btn-secondary !h-9 !px-3 !py-0 text-xs"><ArrowUpRight size={13} />Abrir contacto</Link>}
+                    {canDeleteChat ? (
+                      <button
+                        onClick={handleDeleteChat}
+                        disabled={deleteChatMutation.isPending}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deleteChatMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        Eliminar chat
+                      </button>
+                    ) : null}
                   </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}><p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Ultima actividad</p><p className="mt-2 font-semibold" style={{ color: 'var(--ink-primary)' }}>{formatDateTime(selectedChat.lastMessageAt)}</p></div>
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}><p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Vinculo CRM</p><p className="mt-2 font-semibold" style={{ color: 'var(--ink-primary)' }}>{selectedChat.contactName ?? 'Sin match'}</p></div>
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-0)' }}><p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--ink-tertiary)' }}>Chat id</p><p className="mt-2 font-semibold break-all" style={{ color: 'var(--ink-primary)' }}>{selectedChat.jid}</p></div>
                 </div>
               </div>
 
-              <div ref={messagesViewportRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-5" style={{ background: 'linear-gradient(180deg, rgba(5,150,105,0.03), transparent 18%)' }}>
+              <div
+                ref={messagesViewportRef}
+                className="min-h-0 flex-1 overflow-y-auto px-5 py-5"
+                style={{
+                  background: 'var(--chat-pattern), var(--chat-surface)',
+                }}
+              >
                 {messagesQuery.isLoading ? (
                   <div className="flex items-center justify-center py-24">
                     <Loader2 size={18} className="animate-spin" style={{ color: 'var(--accent)' }} />
@@ -753,24 +852,26 @@ export default function ChatsPage() {
                           {group.items.map((message) => (
                             <div key={message.id} className={clsx('flex', message.fromMe ? 'justify-end' : 'justify-start')}>
                               <div
-                                className="max-w-[82%] rounded-[24px] px-4 py-3"
+                                className="max-w-[82%] rounded-[20px] px-4 py-3 sm:max-w-[70%]"
                                 style={{
-                                  background: message.fromMe ? 'var(--accent)' : 'var(--surface-1)',
-                                  color: message.fromMe ? '#fff' : 'var(--ink-primary)',
-                                  border: message.fromMe ? 'none' : '1px solid var(--border-0)',
-                                  boxShadow: message.fromMe ? '0 10px 24px rgba(5,150,105,0.14)' : 'none',
+                                  background: message.fromMe ? 'var(--chat-outgoing-bg)' : 'var(--chat-incoming-bg)',
+                                  color: message.fromMe ? 'var(--chat-outgoing-text)' : 'var(--ink-primary)',
+                                  border: message.fromMe ? '1px solid rgba(255,255,255,0.16)' : '1px solid var(--chat-incoming-border)',
+                                  boxShadow: message.fromMe
+                                    ? '0 12px 28px rgba(4,120,87,0.2)'
+                                    : '0 8px 20px rgba(15,23,42,0.06)',
                                 }}
                               >
                                 <p
                                   className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em]"
-                                  style={{ color: message.fromMe ? 'rgba(255,255,255,0.8)' : 'var(--accent-text)' }}
+                                  style={{ color: message.fromMe ? 'var(--chat-outgoing-muted)' : 'var(--accent-text)' }}
                                 >
                                   {messageSenderName(message, selectedChat)}
                                 </p>
 
                                 <MessageBody message={message} />
 
-                                <div className="mt-2 flex items-center justify-end gap-2 text-[11px]" style={{ color: message.fromMe ? 'rgba(255,255,255,0.8)' : 'var(--ink-tertiary)' }}>
+                                <div className="mt-2 flex items-center justify-end gap-2 text-[11px]" style={{ color: message.fromMe ? 'var(--chat-outgoing-muted)' : 'var(--ink-tertiary)' }}>
                                   <span>{formatMessageTime(message.sentAt)}</span>
                                   {message.fromMe ? <span>{formatOutgoingStatus(message.status)}</span> : null}
                                 </div>
@@ -808,28 +909,8 @@ export default function ChatsPage() {
                 )}
               </div>
 
-              <div className="shrink-0 border-t px-5 py-4" style={{ borderColor: 'var(--border-0)', background: 'var(--surface-0)' }}>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--ink-tertiary)' }}>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {selectedChat.contactId ? (
-                      <Link href={`/contacts/${selectedChat.contactId}`} className="inline-flex items-center gap-1 font-semibold" style={{ color: 'var(--accent)' }}>
-                        <Link2 size={12} />
-                        Vinculado a CRM
-                      </Link>
-                    ) : (
-                      <span className="inline-flex items-center gap-1">
-                        <Link2 size={12} />
-                        Sin contacto vinculado
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-1">
-                      <Clock3 size={12} />
-                      Ultima actividad {formatChatTimestamp(selectedChat.lastMessageAt)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-end gap-3">
+              <div className="shrink-0 border-t px-4 py-4" style={{ borderColor: 'rgba(5,150,105,0.2)', background: 'linear-gradient(180deg, var(--surface-0), rgba(5,150,105,0.05))' }}>
+                <div className="flex items-end gap-3 rounded-2xl p-3" style={{ background: 'var(--surface-1)', border: '1px solid rgba(5,150,105,0.28)', boxShadow: '0 16px 36px rgba(5,150,105,0.1)' }}>
                   <textarea
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
@@ -840,8 +921,8 @@ export default function ChatsPage() {
                           : 'Conecta o reanuda la sesion para enviar'
                         : 'Tu rol no permite enviar mensajes'
                     }
-                    rows={3}
-                    className="ctrl-input min-h-[92px] resize-none"
+                    rows={2}
+                    className="ctrl-input min-h-[72px] resize-none !border-transparent !bg-transparent !shadow-none"
                     disabled={!canManage || session?.status !== 'CONNECTED' || sendMutation.isPending}
                   />
                   <button onClick={handleSendMessage} disabled={!canManage || session?.status !== 'CONNECTED' || sendMutation.isPending || !messageText.trim()} className="btn-primary !h-12 !px-4">

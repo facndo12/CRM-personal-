@@ -216,6 +216,9 @@ export const whatsappApi = {
   listMessages: (jid: string, params?: { limit?: number }) =>
     api.get(`/whatsapp/chats/${encodeURIComponent(jid)}/messages`, { params }),
 
+  deleteChat: (jid: string) =>
+    api.delete(`/whatsapp/chats/${encodeURIComponent(jid)}`),
+
   syncHistory: (jid: string, params?: { count?: number }) =>
     api.post(`/whatsapp/chats/${encodeURIComponent(jid)}/history`, undefined, { params }),
 
