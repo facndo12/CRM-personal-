@@ -9,6 +9,15 @@ import { config } from './core/config'
 import { EventBus } from './core/event-bus'
 import { AppError } from './types'
 
+function isAppErrorLike(error: any): error is AppError {
+  return error instanceof AppError || (
+    error?.name === 'AppError' &&
+    Number.isInteger(error?.statusCode) &&
+    error.statusCode >= 400 &&
+    error.statusCode < 600
+  )
+}
+
 // Rutas
 import { authRoutes } from './modules/workspaces/auth.routes'
 import { contactRoutes } from './modules/contacts/contact.routes'
@@ -99,7 +108,7 @@ export async function buildApp() {
 
     // Reportar a Sentry solo errores inesperados 
     if (
-      !(error instanceof AppError) &&
+      !isAppErrorLike(error) &&
       error.name !== 'ZodError' &&
       error.code !== 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' &&
       error.code !== 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED'
@@ -116,7 +125,7 @@ export async function buildApp() {
     }
 
     // Errores conocidos de la aplicación
-    if (error instanceof AppError) {
+    if (isAppErrorLike(error)) {
       return reply.status(error.statusCode).send({
         error: error.code ?? 'ERROR',
         message: error.message,
