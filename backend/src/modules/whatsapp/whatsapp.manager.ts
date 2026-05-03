@@ -61,6 +61,15 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function isServerlessRuntime() {
+  return Boolean(
+    process.env.VERCEL === '1' ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.AWS_EXECUTION_ENV?.startsWith('AWS_Lambda') ||
+    process.env.LAMBDA_TASK_ROOT
+  )
+}
+
 function normalizePhoneNumber(value?: string | null) {
   if (!value) return null
   const digits = value.replace(/\D/g, '')
@@ -502,7 +511,7 @@ export class WhatsAppManager {
   private profilePhotoCache = new Map<string, Map<string, ProfilePhotoCacheEntry>>()
 
   isRuntimeCompatible() {
-    if (process.env.VERCEL === '1') {
+    if (isServerlessRuntime()) {
       return false
     }
 
@@ -559,7 +568,25 @@ export class WhatsAppManager {
       return this.getSessionSnapshot(workspaceId)
     }
 
-    const entry = await this.ensureSocket(workspaceId)
+    let entry: SocketEntry
+    try {
+      entry = await this.ensureSocket(workspaceId)
+    } catch (error) {
+      const message = this.formatStartupError(error)
+      await this.updateSession(workspaceId, {
+        status: 'ERROR',
+        qrCode: null,
+        pairingCode: null,
+        pairingCodeIssuedAt: null,
+        lastError: message,
+      }).catch(() => {})
+
+      if (error instanceof AppError) {
+        throw error
+      }
+
+      throw new AppError(502, message, 'WHATSAPP_SOCKET_INIT_FAILED')
+    }
 
     if (!entry.state?.creds?.registered) {
       await this.updateSession(workspaceId, {
@@ -2620,6 +2647,20 @@ export class WhatsAppManager {
     }
 
     return error?.message ?? 'Conexion perdida. Reintentando...'
+  }
+
+  private formatStartupError(error: any) {
+    const message =
+      error?.message ??
+      error?.cause?.message ??
+      error?.output?.payload?.message ??
+      null
+
+    if (message) {
+      return `No se pudo iniciar Baileys: ${message}`
+    }
+
+    return 'No se pudo iniciar Baileys. Revisa el runtime, la red y las credenciales guardadas.'
   }
 }
 
